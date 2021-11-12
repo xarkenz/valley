@@ -1,0 +1,27 @@
+class CharOutputStream {
+
+  CharOutputStream _lshift_(any obj) {
+    // code
+  }
+
+  void flush() {
+    // code
+  }
+
+  void println(any... objs) {
+    self.print(objs..., end="\n");
+  }
+
+  void print(any... objs, any end = "", any sep = " ") {
+    bool first = true;
+    for (any obj : objs) {
+      if (!first)
+        self << sep;
+      self << obj;
+      first = false;
+    }
+    self << end;
+    self.flush();
+  }
+
+}

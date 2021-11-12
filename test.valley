@@ -1,0 +1,45 @@
+/* example program :D */
+
+final double sum(double... nums) {
+  double total = 0;
+  for (double n : nums) {
+    total += n;
+  }
+  return total;
+}
+
+str concat(str[] strings, str sep);
+
+double[] doublearray = [1.0, 2, 3, 4.5f, 7.93];
+str[] strarray = ["ABCDEF", "GHIJKL", "MNOPQR", "STUVWX"];
+
+// do some string stuff
+str hello = "Hello";
+str world = "world!";
+str string = concat([hello, world], " ");
+if (strarray[0] != "")
+  string = concat([string, strarray[0]], " ");
+
+// do double stuff
+double evenTotal = 0;
+double oddTotal = 0;
+if (doublearray != null) {
+  for (double num : doublearray) {
+    if (num % 2 == 0) {
+      evenTotal = sum(evenTotal, num);
+    } elif (num % 2 == 1) {
+      oddTotal += num;
+    } else {
+      // uh oh, this shouldn't happen!
+    }
+  }
+}
+
+int oneThroughTen = 1;
+oneThroughTen--;
+for (int i = 0; i < 10; i++) {
+  oneThroughTen += i;
+}
+
+int[][] grid; // o_O
+grid[0][0] = -1;

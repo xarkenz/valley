@@ -1,0 +1,45 @@
+import .io;
+import .api;
+
+class Console: io.CharOutputStream, io.CharInputStream {
+
+  void flush() {
+    api.execRawCpp("std::cout.flush();");
+  }
+
+  Console _lshift_(any obj) {
+    api.execRawCpp("std::cout<<\"" + (obj -> str) + "\";");
+    return self;
+  }
+
+}
+
+class String {
+
+  str value;
+
+  String() {
+    self.value = "";
+  }
+
+  String(any value) {
+    self.value = value -> str;
+  }
+
+  int length() {
+    return self.value.length;
+  }
+
+  String _add_(any obj) {
+    return String(self.value + obj);
+  }
+
+  String _add_alt_(any obj) {
+    return String(obj + self.value);
+  }
+
+  String _add_set_(any obj) {
+    return String(self.value + obj);
+  }
+
+}
