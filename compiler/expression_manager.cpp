@@ -1,453 +1,530 @@
 #include "expression_manager.hpp"
 
-#include <stack>
-#include <iostream>
-
 #include "errors.hpp"
 #include "tokenizer.hpp"
 
+#include <iostream> // buh
+
+
 namespace valley {
+
   namespace {
-    enum struct operator_precedence {
-      postfix,
-      prefix,
-      exponentative,
-      multiplicative,
-      additive,
-      shift,
-      inequality,
-      equality,
-      bitwise_and,
-      bitwise_xor,
-      bitwise_or,
-      logical_and,
-      logical_xor,
-      logical_or,
-      assignment,
-      comma,
-      container,
+
+    enum struct OperatorPrecedence {
+      POSTFIX,        // x++  x--  x[...]  x(...)
+      PREFIX,         // ++x  --x  +x  -x  ~x  !x
+      EXPONENTATIVE,  // x**y
+      MULTIPLICATIVE, // x*y  x/y  x%y
+      ADDITIVE,       // x+y  x-y
+      SHIFT,          // x<<y  x>>y
+      INEQUALITY,     // x<y  x>y  x<=y  x>=y
+      EQUALITY,       // x==y  x!=y
+      BITWISE_AND,    // x&y
+      BITWISE_XOR,    // x^y
+      BITWISE_OR,     // x|y
+      LOGICAL_AND,    // x&&y
+      LOGICAL_XOR,    // x^^y
+      LOGICAL_OR,     // x||y
+      ASSIGNMENT,     // x=y  x+=y  x-=y  x*=y  x/=y  x%=y  x**=y  x&=y  x|=y  x^=y  x<<=y  x>>=y  x?y:z
+      COMMA,          // x,y
+      CONTAINER,      // [...]
     };
 
-    enum struct operator_associativity {
-      left_to_right,
-      right_to_left,
+    enum struct OperatorAssociativity {
+      LeftToRight,
+      RightToLeft,
     };
 
-    struct operator_info {
-      node_operation operation;
-      operator_precedence precedence;
-      operator_associativity associativity;
-      int num_operands;
-      size_t line_number;
-      size_t char_index;
+    struct OperatorInfo {
+      Operation operation;
+      OperatorPrecedence precedence;
+      OperatorAssociativity associativity;
+      int numOperands;
+      size_t lineNumber;
+      size_t charIndex;
 
-      operator_info(node_operation operation, size_t line_number, size_t char_index):
-      operation(operation), line_number(line_number), char_index(char_index) {
+      OperatorInfo(Operation operation, size_t lineNumber, size_t charIndex):
+      operation(operation), lineNumber(lineNumber), charIndex(charIndex) {
         switch (operation) {
-          case node_operation::un_postinc:
-          case node_operation::un_postdec:
-          case node_operation::index:
-          case node_operation::call:
-            precedence = operator_precedence::postfix;
+          case Operation::INC_AFTER:
+          case Operation::DEC_AFTER:
+          case Operation::SUBSCRIPT:
+          case Operation::CALL:
+            precedence = OperatorPrecedence::POSTFIX;
             break;
-          case node_operation::un_preinc:
-          case node_operation::un_predec:
-          case node_operation::un_pos:
-          case node_operation::un_neg:
-          case node_operation::un_bwnot:
-          case node_operation::un_lnot:
-            precedence = operator_precedence::prefix;
+
+          case Operation::INC_BEFORE:
+          case Operation::DEC_BEFORE:
+          case Operation::POS:
+          case Operation::NEG:
+          case Operation::NOT:
+          case Operation::LNOT:
+            precedence = OperatorPrecedence::PREFIX;
             break;
-          case node_operation::bin_pow:
-            precedence = operator_precedence::exponentative;
+
+          case Operation::POW:
+            precedence = OperatorPrecedence::EXPONENTATIVE;
             break;
-          case node_operation::bin_mul:
-          case node_operation::bin_div:
-          case node_operation::bin_mod:
-            precedence = operator_precedence::multiplicative;
+
+          case Operation::MUL:
+          case Operation::DIV:
+          case Operation::MOD:
+            precedence = OperatorPrecedence::MULTIPLICATIVE;
             break;
-          case node_operation::bin_add:
-          case node_operation::bin_sub:
-            precedence = operator_precedence::additive;
+
+          case Operation::ADD:
+          case Operation::SUB:
+            precedence = OperatorPrecedence::ADDITIVE;
             break;
-          case node_operation::bin_lshift:
-          case node_operation::bin_rshift:
-            precedence = operator_precedence::shift;
+
+          case Operation::LSHIFT:
+          case Operation::RSHIFT:
+            precedence = OperatorPrecedence::SHIFT;
             break;
-          case node_operation::bin_lt:
-          case node_operation::bin_gt:
-          case node_operation::bin_lteq:
-          case node_operation::bin_gteq:
-            precedence = operator_precedence::inequality;
+
+          case Operation::LT:
+          case Operation::GT:
+          case Operation::LTEQ:
+          case Operation::GTEQ:
+            precedence = OperatorPrecedence::INEQUALITY;
             break;
-          case node_operation::bin_eq:
-          case node_operation::bin_neq:
-            precedence = operator_precedence::equality;
+
+          case Operation::EQ:
+          case Operation::NEQ:
+            precedence = OperatorPrecedence::EQUALITY;
             break;
-          case node_operation::bin_bwand:
-            precedence = operator_precedence::bitwise_and;
+
+          case Operation::AND:
+            precedence = OperatorPrecedence::BITWISE_AND;
             break;
-          case node_operation::bin_bwxor:
-            precedence = operator_precedence::bitwise_xor;
+
+          case Operation::XOR:
+            precedence = OperatorPrecedence::BITWISE_XOR;
             break;
-          case node_operation::bin_bwor:
-            precedence = operator_precedence::bitwise_or;
+
+          case Operation::OR:
+            precedence = OperatorPrecedence::BITWISE_OR;
             break;
-          case node_operation::bin_land:
-            precedence = operator_precedence::logical_and;
+
+          case Operation::LAND:
+            precedence = OperatorPrecedence::LOGICAL_AND;
             break;
-          case node_operation::bin_lxor:
-            precedence = operator_precedence::logical_xor;
+
+          case Operation::LXOR:
+            precedence = OperatorPrecedence::LOGICAL_XOR;
             break;
-          case node_operation::bin_lor:
-            precedence = operator_precedence::logical_or;
+
+          case Operation::LOR:
+            precedence = OperatorPrecedence::LOGICAL_OR;
             break;
-          case node_operation::bin_asg:
-          case node_operation::bin_asg_add:
-          case node_operation::bin_asg_sub:
-          case node_operation::bin_asg_mul:
-          case node_operation::bin_asg_div:
-          case node_operation::bin_asg_mod:
-          case node_operation::bin_asg_pow:
-          case node_operation::bin_asg_and:
-          case node_operation::bin_asg_or:
-          case node_operation::bin_asg_xor:
-          case node_operation::bin_asg_lshift:
-          case node_operation::bin_asg_rshift:
-          case node_operation::ternary:
-            precedence = operator_precedence::assignment;
+
+          case Operation::SET:
+          case Operation::SET_ADD:
+          case Operation::SET_SUB:
+          case Operation::SET_MUL:
+          case Operation::SET_DIV:
+          case Operation::SET_MOD:
+          case Operation::SET_POW:
+          case Operation::SET_AND:
+          case Operation::SET_OR:
+          case Operation::SET_XOR:
+          case Operation::SET_LSHIFT:
+          case Operation::SET_RSHIFT:
+          case Operation::TERNARY:
+            precedence = OperatorPrecedence::ASSIGNMENT;
             break;
-          case node_operation::comma:
-            precedence = operator_precedence::comma;
-            break;     
-          case node_operation::list:
-            precedence = operator_precedence::container;
-            break;     
+
+          case Operation::COMMA:
+            precedence = OperatorPrecedence::COMMA;
+            break;
+
+          case Operation::ARRAY:
+            precedence = OperatorPrecedence::CONTAINER;
+            break;
         }
 
         switch (precedence) {
-          case operator_precedence::assignment:
-          case operator_precedence::prefix:
-            associativity = operator_associativity::right_to_left;
+          case OperatorPrecedence::ASSIGNMENT:
+          case OperatorPrecedence::PREFIX:
+            associativity = OperatorAssociativity::RightToLeft;
             break;
+
           default:
-            associativity = operator_associativity::left_to_right;
+            associativity = OperatorAssociativity::LeftToRight;
             break;
         }
 
         switch (operation) {
-          case node_operation::un_preinc:
-          case node_operation::un_predec:
-          case node_operation::un_postinc:
-          case node_operation::un_postdec:
-          case node_operation::un_pos:
-          case node_operation::un_neg:
-          case node_operation::un_bwnot:
-          case node_operation::un_lnot:
-          case node_operation::comma:
-          case node_operation::call:
-          case node_operation::list:
-            num_operands = 1;
+          case Operation::INC_BEFORE:
+          case Operation::INC_AFTER:
+          case Operation::DEC_BEFORE:
+          case Operation::DEC_AFTER:
+          case Operation::POS:
+          case Operation::NEG:
+          case Operation::NOT:
+          case Operation::LNOT:
+          case Operation::COMMA:
+          case Operation::CALL:
+          case Operation::ARRAY:
+            numOperands = 1; // Unary
             break;
-          case node_operation::ternary:
-            num_operands = 3;
+
+          case Operation::TERNARY:
+            numOperands = 3; // Ternary
             break;
+
           default:
-            num_operands = 2;
+            numOperands = 2; // Binary
             break;
         }
       }
     };
 
-    operator_info get_operator_info(reserved_token rtoken, bool prefix, size_t line_number, size_t char_index) {
+    OperatorInfo getOperatorInfo(ReservedToken rtoken, bool prefix, size_t lineNumber, size_t charIndex) {
       switch (rtoken) {
-        case reserved_token::d_plus:
+        case ReservedToken::D_PLUS:
           return prefix
-            ? operator_info(node_operation::un_preinc, line_number, char_index)
-            : operator_info(node_operation::un_postinc, line_number, char_index);
-        case reserved_token::d_minus:
+            ? OperatorInfo(Operation::INC_BEFORE, lineNumber, charIndex)
+            : OperatorInfo(Operation::INC_AFTER, lineNumber, charIndex);
+
+        case ReservedToken::D_HYPHEN:
           return prefix
-            ? operator_info(node_operation::un_predec, line_number, char_index)
-            : operator_info(node_operation::un_postdec, line_number, char_index);
-        case reserved_token::plus:
+            ? OperatorInfo(Operation::DEC_BEFORE, lineNumber, charIndex)
+            : OperatorInfo(Operation::DEC_AFTER, lineNumber, charIndex);
+
+        case ReservedToken::PLUS:
           return prefix
-            ? operator_info(node_operation::un_pos, line_number, char_index)
-            : operator_info(node_operation::bin_add, line_number, char_index);
-        case reserved_token::minus:
+            ? OperatorInfo(Operation::POS, lineNumber, charIndex)
+            : OperatorInfo(Operation::ADD, lineNumber, charIndex);
+
+        case ReservedToken::HYPHEN:
           return prefix
-            ? operator_info(node_operation::un_neg, line_number, char_index)
-            : operator_info(node_operation::bin_sub, line_number, char_index);
-        case reserved_token::star:
-          return operator_info(node_operation::bin_mul, line_number, char_index);
-        case reserved_token::slash:
-          return operator_info(node_operation::bin_div, line_number, char_index);
-        case reserved_token::prcnt:
-          return operator_info(node_operation::bin_mod, line_number, char_index);
-        case reserved_token::d_star:
-          return operator_info(node_operation::bin_pow, line_number, char_index);
-        case reserved_token::tilde:
-          return operator_info(node_operation::un_bwnot, line_number, char_index);
-        case reserved_token::ampr:
-          return operator_info(node_operation::bin_bwand, line_number, char_index);
-        case reserved_token::vbar:
-          return operator_info(node_operation::bin_bwor, line_number, char_index);
-        case reserved_token::caret:
-          return operator_info(node_operation::bin_bwxor, line_number, char_index);
-        case reserved_token::d_langle:
-          return operator_info(node_operation::bin_lshift, line_number, char_index);
-        case reserved_token::d_rangle:
-          return operator_info(node_operation::bin_rshift, line_number, char_index);
-        case reserved_token::equal:
-          return operator_info(node_operation::bin_asg, line_number, char_index);
-        case reserved_token::plus_eq:
-          return operator_info(node_operation::bin_asg_add, line_number, char_index);
-        case reserved_token::minus_eq:
-          return operator_info(node_operation::bin_asg_sub, line_number, char_index);
-        case reserved_token::star_eq:
-          return operator_info(node_operation::bin_asg_mul, line_number, char_index);
-        case reserved_token::slash_eq:
-          return operator_info(node_operation::bin_asg_div, line_number, char_index);
-        case reserved_token::prcnt_eq:
-          return operator_info(node_operation::bin_asg_mod, line_number, char_index);
-        case reserved_token::d_star_eq:
-          return operator_info(node_operation::bin_asg_pow, line_number, char_index);
-        case reserved_token::ampr_eq:
-          return operator_info(node_operation::bin_asg_and, line_number, char_index);
-        case reserved_token::vbar_eq:
-          return operator_info(node_operation::bin_asg_or, line_number, char_index);
-        case reserved_token::caret_eq:
-          return operator_info(node_operation::bin_asg_xor, line_number, char_index);
-        case reserved_token::d_langle_eq:
-          return operator_info(node_operation::bin_asg_lshift, line_number, char_index);
-        case reserved_token::d_rangle_eq:
-          return operator_info(node_operation::bin_asg_rshift, line_number, char_index);
-        case reserved_token::exclm:
-          return operator_info(node_operation::un_lnot, line_number, char_index);
-        case reserved_token::d_ampr:
-          return operator_info(node_operation::bin_land, line_number, char_index);
-        case reserved_token::d_vbar:
-          return operator_info(node_operation::bin_lor, line_number, char_index);
-        case reserved_token::d_caret:
-          return operator_info(node_operation::bin_lxor, line_number, char_index);
-        case reserved_token::d_equal:
-          return operator_info(node_operation::bin_eq, line_number, char_index);
-        case reserved_token::exclm_eq:
-          return operator_info(node_operation::bin_neq, line_number, char_index);
-        case reserved_token::langle:
-          return operator_info(node_operation::bin_lt, line_number, char_index);
-        case reserved_token::rangle:
-          return operator_info(node_operation::bin_gt, line_number, char_index);
-        case reserved_token::langle_eq:
-          return operator_info(node_operation::bin_lteq, line_number, char_index);
-        case reserved_token::rangle_eq:
-          return operator_info(node_operation::bin_gteq, line_number, char_index);
-        case reserved_token::qmark:
-          return operator_info(node_operation::ternary, line_number, char_index);
-        case reserved_token::comma:
-          return operator_info(node_operation::comma, line_number, char_index);
-        case reserved_token::lparen:
-          return operator_info(node_operation::call, line_number, char_index);
-        case reserved_token::lbrckt:
-          return operator_info(node_operation::index, line_number, char_index);
+            ? OperatorInfo(Operation::NEG, lineNumber, charIndex)
+            : OperatorInfo(Operation::SUB, lineNumber, charIndex);
+
+        case ReservedToken::ASTERISK:
+          return OperatorInfo(Operation::MUL, lineNumber, charIndex);
+
+        case ReservedToken::SLASH:
+          return OperatorInfo(Operation::DIV, lineNumber, charIndex);
+
+        case ReservedToken::PERCENT:
+          return OperatorInfo(Operation::MOD, lineNumber, charIndex);
+
+        case ReservedToken::D_ASTERISK:
+          return OperatorInfo(Operation::POW, lineNumber, charIndex);
+
+        case ReservedToken::TILDE:
+          return OperatorInfo(Operation::NOT, lineNumber, charIndex);
+
+        case ReservedToken::AMPERSAND:
+          return OperatorInfo(Operation::AND, lineNumber, charIndex);
+
+        case ReservedToken::BAR:
+          return OperatorInfo(Operation::OR, lineNumber, charIndex);
+
+        case ReservedToken::CARET:
+          return OperatorInfo(Operation::XOR, lineNumber, charIndex);
+
+        case ReservedToken::D_ANGLE_L:
+          return OperatorInfo(Operation::LSHIFT, lineNumber, charIndex);
+
+        case ReservedToken::D_ANGLE_R:
+          return OperatorInfo(Operation::RSHIFT, lineNumber, charIndex);
+
+        case ReservedToken::EQUAL:
+          return OperatorInfo(Operation::SET, lineNumber, charIndex);
+
+        case ReservedToken::PLUS_EQUAL:
+          return OperatorInfo(Operation::SET_ADD, lineNumber, charIndex);
+
+        case ReservedToken::HYPHEN_EQUAL:
+          return OperatorInfo(Operation::SET_SUB, lineNumber, charIndex);
+
+        case ReservedToken::ASTERISK_EQUAL:
+          return OperatorInfo(Operation::SET_MUL, lineNumber, charIndex);
+
+        case ReservedToken::SLASH_EQUAL:
+          return OperatorInfo(Operation::SET_DIV, lineNumber, charIndex);
+
+        case ReservedToken::PERCENT_EQUAL:
+          return OperatorInfo(Operation::SET_MOD, lineNumber, charIndex);
+
+        case ReservedToken::D_ASTERISK_EQUAL:
+          return OperatorInfo(Operation::SET_POW, lineNumber, charIndex);
+
+        case ReservedToken::AMPERSAND_EQUAL:
+          return OperatorInfo(Operation::SET_AND, lineNumber, charIndex);
+
+        case ReservedToken::BAR_EQUAL:
+          return OperatorInfo(Operation::SET_OR, lineNumber, charIndex);
+
+        case ReservedToken::CARET_EQUAL:
+          return OperatorInfo(Operation::SET_XOR, lineNumber, charIndex);
+
+        case ReservedToken::D_ANGLE_L_EQUAL:
+          return OperatorInfo(Operation::SET_LSHIFT, lineNumber, charIndex);
+
+        case ReservedToken::D_ANGLE_R_EQUAL:
+          return OperatorInfo(Operation::SET_RSHIFT, lineNumber, charIndex);
+
+        case ReservedToken::EXCLAMATION:
+          return OperatorInfo(Operation::LNOT, lineNumber, charIndex);
+
+        case ReservedToken::D_AMPERSAND:
+          return OperatorInfo(Operation::LAND, lineNumber, charIndex);
+
+        case ReservedToken::D_BAR:
+          return OperatorInfo(Operation::LOR, lineNumber, charIndex);
+
+        case ReservedToken::D_CARET:
+          return OperatorInfo(Operation::LXOR, lineNumber, charIndex);
+
+        case ReservedToken::D_EQUAL:
+          return OperatorInfo(Operation::EQ, lineNumber, charIndex);
+
+        case ReservedToken::EXCLAMATION_EQUAL:
+          return OperatorInfo(Operation::NEQ, lineNumber, charIndex);
+
+        case ReservedToken::ANGLE_L:
+          return OperatorInfo(Operation::LT, lineNumber, charIndex);
+
+        case ReservedToken::ANGLE_R:
+          return OperatorInfo(Operation::GT, lineNumber, charIndex);
+
+        case ReservedToken::ANGLE_L_EQUAL:
+          return OperatorInfo(Operation::LTEQ, lineNumber, charIndex);
+
+        case ReservedToken::ANGLE_R_EQUAL:
+          return OperatorInfo(Operation::GTEQ, lineNumber, charIndex);
+
+        case ReservedToken::QUESTION:
+          return OperatorInfo(Operation::TERNARY, lineNumber, charIndex);
+
+        case ReservedToken::COMMA:
+          return OperatorInfo(Operation::COMMA, lineNumber, charIndex);
+
+        case ReservedToken::ROUND_L:
+          return OperatorInfo(Operation::CALL, lineNumber, charIndex);
+
+        case ReservedToken::SQUARE_L:
+          return OperatorInfo(Operation::SUBSCRIPT, lineNumber, charIndex);
+
         default:
-          throw unexpected_syntax_error(std::to_string(rtoken), line_number, char_index, false);
+          throw SyntaxError_unexpected(reservedTokenRepr(rtoken), lineNumber, charIndex, false);
       }
     }
 
-    bool is_end_of_expression(const token& t, bool allow_comma) {
-      if (t.is_reserved_token()) {
-        switch (t.get_reserved_token()) {
-          case reserved_token::semic:
-          case reserved_token::colon:
-          case reserved_token::rparen:
-          case reserved_token::rbrckt:
-          case reserved_token::rbrace:
+    bool isExpressionEnd(const Token& t, bool allowComma) {
+      if (t.isReservedToken()) {
+        switch (t.getReservedToken()) {
+          case ReservedToken::SEMICOLON:
+          case ReservedToken::COLON:
+          case ReservedToken::ROUND_R:
+          case ReservedToken::SQUARE_R:
+          case ReservedToken::CURLY_R:
             return true;
-          case reserved_token::comma:
-            return !allow_comma;
+
+          case ReservedToken::COMMA:
+            return !allowComma;
+
           default:
             return false;
         }
       }
-      return t.is_eof();
+      return t.isEof();
     }
 
-    bool is_evaluated_before(const operator_info& l, const operator_info& r) {
-      return l.associativity == operator_associativity::left_to_right ? l.precedence <= r.precedence : l.precedence < r.precedence;
+    bool isEvaluatedBefore(const OperatorInfo& l, const OperatorInfo& r) {
+      return l.associativity == OperatorAssociativity::LeftToRight ? l.precedence <= r.precedence : l.precedence < r.precedence;
     }
 
-    void pop_one_operator(std::stack<operator_info>& operator_stack, std::stack<node_ptr>& operand_stack, compiler_context& context, size_t line_number, size_t char_index) {
-      if (operand_stack.size() < operator_stack.top().num_operands) {
+    void popOperator(std::stack<OperatorInfo>& operatorStack, std::stack<Expression::Ptr>& operandStack, CompilerContext& context, size_t lineNumber, size_t charIndex) {
+      if (operandStack.size() < operatorStack.top().numOperands) {
         std::string str = "failed to parse expression. (expected ";
-        str += std::to_string(operator_stack.top().num_operands);
+        str += std::to_string(operatorStack.top().numOperands);
         str += " operands, got ";
-        str += std::to_string(operand_stack.size());
-        throw compiler_error(str + ".)", line_number, char_index, 0);
+        str += std::to_string(operandStack.size());
+        throw CompileError(str + ".)", lineNumber, charIndex, 0);
       }
 
-      std::vector<node_ptr> operands;
-      operands.resize(operator_stack.top().num_operands);
+      std::vector<Expression::Ptr> operands;
+      operands.resize(operatorStack.top().numOperands);
 
-      if (operator_stack.top().precedence != operator_precedence::prefix) {
-        operator_stack.top().line_number = operand_stack.top()->get_line_number();
-        operator_stack.top().char_index = operand_stack.top()->get_char_index();
+      if (operatorStack.top().precedence != OperatorPrecedence::PREFIX) {
+        operatorStack.top().lineNumber = operandStack.top()->lineNumber();
+        operatorStack.top().charIndex = operandStack.top()->charIndex();
       }
 
-      for (int i = operator_stack.top().num_operands - 1; i >= 0; --i) {
-        operands[i] = std::move(operand_stack.top());
-        operand_stack.pop();
+      for (int i = operatorStack.top().numOperands - 1; i >= 0; --i) {
+        operands[i] = std::move(operandStack.top());
+        operandStack.pop();
       }
 
-      operand_stack.push(std::make_unique<node>(context, operator_stack.top().operation, std::move(operands), operator_stack.top().line_number, operator_stack.top().char_index));
+      operandStack.push(std::make_unique<Expression>(context, operatorStack.top().operation, std::move(operands), operatorStack.top().lineNumber, operatorStack.top().charIndex));
 
-      operator_stack.pop();
+      operatorStack.pop();
     }
 
-    node_ptr parse_expression_tree_impl(compiler_context& context, tokens_iterator& it, bool allow_comma, bool allow_empty) {
-      std::stack<node_ptr> operand_stack;
-      std::stack<operator_info> operator_stack;
+    Expression::Ptr parseExpression(CompilerContext& context, TokenIterator& it, bool allowComma, bool allowEmpty) {
+      std::stack<Expression::Ptr> operandStack;
+      std::stack<OperatorInfo> operatorStack;
 
-      bool expecting_operand = true;
-      for (; !is_end_of_expression(*it, allow_comma); ++it) {
-        if (it->is_reserved_token()) {
-          operator_info oi = get_operator_info(it->get_reserved_token(), expecting_operand, it->get_line_number(), it->get_char_index());
+      bool expectingOperand = true;
+      for (; !isExpressionEnd(*it, allowComma); ++it) {
+        if (it->isReservedToken()) {
+          OperatorInfo oi = getOperatorInfo(it->getReservedToken(), expectingOperand, it->lineNumber(), it->charIndex());
 
-          if (oi.operation == node_operation::call && expecting_operand) {
-            // Expression grouping, (expr)
+          if (oi.operation == Operation::CALL && expectingOperand) {
+            // Expression grouping (expr)
             ++it;
-            operand_stack.push(parse_expression_tree_impl(context, it, false, false));
-            if (!it->has_value(reserved_token::rparen))
-              throw syntax_error("could not find a matching ')'.", oi.line_number, oi.char_index, 0);
-            expecting_operand = false;
+            operandStack.push(parseExpression(context, it, false, false));
+            if (!it->hasValue(ReservedToken::ROUND_R))
+              throw SyntaxError("could not find a matching ')'.", oi.lineNumber, oi.charIndex, 0);
+            expectingOperand = false;
             continue;
           }
 
-          if (oi.operation == node_operation::index && expecting_operand) {
-            // Array literal, [item, ...]
-            oi.operation = node_operation::list;
-            oi.precedence = operator_precedence::container;
-            oi.num_operands = 0;
+          if (oi.operation == Operation::SUBSCRIPT && expectingOperand) {
+            // Array literal [item, ...]
+            oi.operation = Operation::ARRAY;
+            oi.precedence = OperatorPrecedence::CONTAINER;
+            oi.numOperands = 0;
             ++it;
-            if (it->has_value(reserved_token::rbrckt))
+            if (it->hasValue(ReservedToken::SQUARE_R))
               break;
             while (true) {
-              node_ptr item = parse_expression_tree_impl(context, it, false, false);
-              operand_stack.push(std::move(item));
-              ++oi.num_operands;
-              if (it->has_value(reserved_token::rbrckt))
+              Expression::Ptr item = parseExpression(context, it, false, false);
+              operandStack.push(std::move(item));
+              ++oi.numOperands;
+              if (it->hasValue(ReservedToken::SQUARE_R))
                 break;
-              if (!it->has_value(reserved_token::comma))
-                throw syntax_error("could not find a matching ']'.", oi.line_number, oi.char_index, 0);
+              if (!it->hasValue(ReservedToken::COMMA))
+                throw SyntaxError("could not find a matching ']'.", oi.lineNumber, oi.charIndex, 0);
               ++it;
             }
-            operator_stack.push(oi);
-            expecting_operand = false;
+            operatorStack.push(oi);
+            expectingOperand = false;
             continue;
           }
 
-          if ((oi.precedence == operator_precedence::prefix) != expecting_operand) {
-            throw unexpected_syntax_error(std::to_string(*it), it->get_line_number(), it->get_char_index(), true);
+          if ((oi.precedence == OperatorPrecedence::PREFIX) != expectingOperand) {
+            throw SyntaxError_unexpected(it->toString(), it->lineNumber(), it->charIndex(), true);
           }
 
-          if (!operator_stack.empty() && is_evaluated_before(operator_stack.top(), oi)) {
-            pop_one_operator(operator_stack, operand_stack, context, it->get_line_number(), it->get_char_index());
+          if (!operatorStack.empty() && isEvaluatedBefore(operatorStack.top(), oi)) {
+            popOperator(operatorStack, operandStack, context, it->lineNumber(), it->charIndex());
           }
 
           switch (oi.operation) {
-            case node_operation::call: {
+            case Operation::CALL: {
               ++it;
-              if (it->has_value(reserved_token::rparen))
+              if (it->hasValue(ReservedToken::ROUND_R))
                 break;
               while (true) {
-                node_ptr argument = parse_expression_tree_impl(context, it, false, false);
-                operand_stack.push(std::move(argument));
-                ++oi.num_operands;
-                if (it->has_value(reserved_token::rparen))
+                Expression::Ptr argument = parseExpression(context, it, false, false);
+                operandStack.push(std::move(argument));
+                ++oi.numOperands;
+                if (it->hasValue(ReservedToken::ROUND_R))
                   break;
-                if (!it->has_value(reserved_token::comma))
-                  throw syntax_error("could not find a matching ')'.", it->get_line_number(), it->get_char_index(), 0);
+                if (!it->hasValue(ReservedToken::COMMA))
+                  throw SyntaxError("could not find a matching ')'.", it->lineNumber(), it->charIndex(), 0);
                 ++it;
               }
               break;
             }
-            case node_operation::index:
+
+            case Operation::SUBSCRIPT:
               ++it;
-              operand_stack.push(parse_expression_tree_impl(context, it, true, false));
-              if (!it->has_value(reserved_token::rbrckt))
-                throw syntax_error("could not find a matching ']'.", it->get_line_number(), it->get_char_index(), 0);
+              operandStack.push(parseExpression(context, it, true, false));
+              if (!it->hasValue(ReservedToken::SQUARE_R))
+                throw SyntaxError("could not find a matching ']'.", it->lineNumber(), it->charIndex(), 0);
               break;
-            case node_operation::ternary:
+
+            case Operation::TERNARY:
               ++it;
-              operand_stack.push(parse_expression_tree_impl(context, it, false, false));
-              if (!it->has_value(reserved_token::colon))
-                throw syntax_error("expected ':' in ternary expression.", it->get_line_number(), it->get_char_index(), 0);
+              operandStack.push(parseExpression(context, it, false, false));
+              if (!it->hasValue(ReservedToken::COLON))
+                throw SyntaxError("expected ':' to complete ternary expression.", it->lineNumber(), it->charIndex(), 0);
               break;
+
             default:
               break;
           }
 
-          operator_stack.push(oi);
-          expecting_operand = oi.precedence != operator_precedence::postfix;
+          operatorStack.push(oi);
+          expectingOperand = oi.precedence != OperatorPrecedence::POSTFIX;
+
         } else {
-          if (!expecting_operand) {
-            throw unexpected_syntax_error(std::to_string(*it), it->get_line_number(), it->get_char_index(), false);
-          }
-          node_value value;
-          if (it->is_null()) {
-            node_value(void_value{});
-          } else if (it->is_byte()) {
-            node_value(it->get_byte());
-          } else if (it->is_short()) {
-            node_value(it->get_short());
-          } else if (it->is_int()) {
-            node_value(it->get_int());
-          } else if (it->is_long()) {
-            node_value(it->get_long());
-          } else if (it->is_float()) {
-            node_value(it->get_float());
-          } else if (it->is_double()) {
-            node_value(it->get_double());
-          } else if (it->is_bool()) {
-            node_value(it->get_bool());
-          } else if (it->is_char()) {
-            node_value(it->get_char());
-          } else if (it->is_str()) {
-            node_value(it->get_str());
-          } else if (it->is_identifier()) {
-            node_value(it->get_identifier());
-          }
-          operand_stack.push(std::make_unique<node>(context, value, std::vector<node_ptr>(), it->get_line_number(), it->get_char_index()));
-          expecting_operand = false;
+          if (!expectingOperand)
+            throw SyntaxError_unexpected(it->toString(), it->lineNumber(), it->charIndex(), false);
+
+          ExpressionValue value;
+
+          if (it->isNull())
+            value = VoidValue{};
+
+          else if (it->isByte())
+            value = it->getByte();
+
+          else if (it->isShort())
+            value = it->getShort();
+
+          else if (it->isInt())
+            value = it->getInt();
+
+          else if (it->isLong())
+            value = it->getLong();
+
+          else if (it->isFloat())
+            value = it->getFloat();
+
+          else if (it->isDouble())
+            value = it->getDouble();
+
+          else if (it->isBool())
+            value = it->getBool();
+
+          else if (it->isChar())
+            value = it->getChar();
+
+          else if (it->isStr())
+            value = it->getStr();
+
+          else if (it->isIdentifier())
+            value = it->getIdentifier();
+
+          operandStack.push(std::make_unique<Expression>(context, value, std::vector<Expression::Ptr>(), it->lineNumber(), it->charIndex()));
+          expectingOperand = false;
         }
       }
 
-      if (expecting_operand) {
-        if (allow_empty && operand_stack.empty() && operator_stack.empty()) {
-          return node_ptr();
-        } else {
-          throw syntax_error("expected an operand.", it->get_line_number(), it->get_char_index(), 0);
-        }
+      if (expectingOperand) {
+        if (allowEmpty && operandStack.empty() && operatorStack.empty())
+          return Expression::Ptr();
+        throw SyntaxError("expected an operand.", it->lineNumber(), it->charIndex(), 0);
       }
 
-      while (!operator_stack.empty()) {
-        pop_one_operator(operator_stack, operand_stack, context, it->get_line_number(), it->get_char_index());
+      while (!operatorStack.empty()) {
+        popOperator(operatorStack, operandStack, context, it->lineNumber(), it->charIndex());
       }
 
-      if (operand_stack.size() != 1 || !operator_stack.empty()) {
+      if (operandStack.size() != 1 || !operatorStack.empty()) {
         std::string str = "failed to parse expression. (resolved to ";
-        str += std::to_string(operand_stack.size());
+        str += std::to_string(operandStack.size());
         str += " operands, ";
-        str += std::to_string(operator_stack.size());
-        throw compiler_error(str + " operators.)", it->get_line_number(), it->get_char_index(), 0);
+        str += std::to_string(operatorStack.size());
+        throw CompileError(str + " operators.)", it->lineNumber(), it->charIndex(), 0);
       }
 
-      return std::move(operand_stack.top());
+      return std::move(operandStack.top());
     }
+    
   }
 
-  node_ptr parse_expression_tree(compiler_context& context, tokens_iterator& it, type_handle type_id, bool lvalue, bool allow_comma, bool allow_empty) {
-    node_ptr ret = parse_expression_tree_impl(context, it, allow_comma, allow_empty);
-    ret->check_conversion(type_id, lvalue);
+  Expression::Ptr generateParseTree(CompilerContext& context, TokenIterator& it, TypeHandle type, bool lvalue, bool allowComma, bool allowEmpty) {
+    Expression::Ptr ret = parseExpression(context, it, allowComma, allowEmpty);
+    ret->checkConversion(type, lvalue);
     return ret;
   }
 }

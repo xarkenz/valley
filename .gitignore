@@ -1,0 +1,6 @@
+# ignore compiled code
+*.o
+
+# ignore replit config files (build process is in README.md)
+.replit
+.breakpoints

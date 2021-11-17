@@ -1,18 +1,14 @@
-#ifndef EXPRESSION_MANAGER_HPP
-#define EXPRESSION_MANAGER_HPP
-
-#include <memory>
+#pragma once
 
 #include "expression.hpp"
 #include "types.hpp"
 
+
 namespace valley {
-  class node;
-  using node_ptr = std::unique_ptr<node>;
-  class tokens_iterator;
-  class compiler_context;
 
-  node_ptr parse_expression_tree(compiler_context& context, tokens_iterator& it, type_handle type_id, bool lvalue, bool allow_comma, bool allow_empty);
+  class TokenIterator;
+  class CompilerContext;
+
+  Expression::Ptr generateParseTree(CompilerContext& context, TokenIterator& it, TypeHandle type, bool lvalue, bool allowComma, bool allowEmpty);
+  
 }
-
-#endif

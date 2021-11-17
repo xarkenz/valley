@@ -1,444 +1,447 @@
 #include "statement_manager.hpp"
 
 #include <stack>
-#include <iostream>
 
 #include "errors.hpp"
 #include "tokenizer.hpp"
 
+
 namespace valley {
 
   namespace {
-    type_handle get_typekw_handle(reserved_token typekw) {
-      switch (typekw) {
-        case reserved_token::typekw_bool:
-          return type_registry::bool_handle();
-        case reserved_token::typekw_byte:
-          return type_registry::byte_handle();
-        case reserved_token::typekw_char:
-          return type_registry::char_handle();
-        case reserved_token::typekw_double:
-          return type_registry::double_handle();
-        case reserved_token::typekw_float:
-          return type_registry::float_handle();
-        case reserved_token::typekw_int:
-          return type_registry::int_handle();
-        case reserved_token::typekw_long:
-          return type_registry::long_handle();
-        case reserved_token::typekw_short:
-          return type_registry::short_handle();
-        case reserved_token::typekw_str:
-          return type_registry::str_handle();
-        case reserved_token::typekw_void:
-          return type_registry::void_handle();
+
+    TypeHandle getTypeFromKeyword(ReservedToken kw) {
+      switch (kw) {
+        case ReservedToken::TYPE_ANY:
+          return TypeRegistry::anyHandle();
+
+        case ReservedToken::TYPE_BOOL:
+          return TypeRegistry::boolHandle();
+
+        case ReservedToken::TYPE_BYTE:
+          return TypeRegistry::byteHandle();
+
+        case ReservedToken::TYPE_CHAR:
+          return TypeRegistry::charHandle();
+
+        case ReservedToken::TYPE_DOUBLE:
+          return TypeRegistry::doubleHandle();
+
+        case ReservedToken::TYPE_FLOAT:
+          return TypeRegistry::floatHandle();
+
+        case ReservedToken::TYPE_INT:
+          return TypeRegistry::intHandle();
+
+        case ReservedToken::TYPE_LONG:
+          return TypeRegistry::longHandle();
+
+        case ReservedToken::TYPE_SHORT:
+          return TypeRegistry::shortHandle();
+
+        case ReservedToken::TYPE_STR:
+          return TypeRegistry::strHandle();
+
+        case ReservedToken::TYPE_VOID:
+          return TypeRegistry::voidHandle();
+
         default:
           return nullptr;
       }
     }
+
   }
 
-  statement::ptr parse_declare(compiler_context& context, tokens_iterator& it, statement::ptr parent, type_handle type_id, bool is_final, bool is_static, size_t line_number, size_t char_index) {
-    if (it->is_reserved_token()) {
-      if (it->get_reserved_token() == reserved_token::kw_final) {
-        if (is_final)
-          throw syntax_error("name is already specified as final.", it->get_line_number(), it->get_char_index(), 5);
-        return parse_declare(context, ++it, parent, type_id, true, is_static, line_number, char_index);
+  Statement::Ptr parseDeclaration(CompilerContext& context, TokenIterator& it, Statement::Ptr parent, TypeHandle type, bool isFinal, bool isStatic, size_t lineNumber, size_t charIndex) {
+    if (it->isReservedToken()) {
+      if (it->getReservedToken() == ReservedToken::KW_FINAL) {
+        if (isFinal)
+          throw SyntaxError("variable is already specified as final.", it->lineNumber(), it->charIndex(), 5);
+        return parseDeclaration(context, ++it, parent, type, true, isStatic, lineNumber, charIndex);
       }
-      if (it->get_reserved_token() == reserved_token::kw_static) {
-        if (is_static)
-          throw syntax_error("name is already specified as static.", it->get_line_number(), it->get_char_index(), 6);
-        return parse_declare(context, ++it, parent, type_id, is_final, true, line_number, char_index);
+      if (it->getReservedToken() == ReservedToken::KW_STATIC) {
+        if (isStatic)
+          throw SyntaxError("variable is already specified as static.", it->lineNumber(), it->charIndex(), 6);
+        return parseDeclaration(context, ++it, parent, type, isFinal, true, lineNumber, charIndex);
       }
-      if (it->get_reserved_token() == reserved_token::lbrckt) {
-        if (!type_id)
-          throw syntax_error("encountered '[]' before name type.", it->get_line_number(), it->get_char_index(), 2);
+      if (it->getReservedToken() == ReservedToken::SQUARE_L) {
+        if (!type)
+          throw SyntaxError("encountered '[]' before type in declaration.", it->lineNumber(), it->charIndex(), 2);
         ++it;
-        if (it->is_reserved_token() && it->get_reserved_token() == reserved_token::rbrckt) {
-          array_type at;
-          at.inner = type_id;
-          return parse_declare(context, ++it, parent, context.get_handle(at), is_final, is_static, line_number, char_index);
+        if (it->hasValue(ReservedToken::SQUARE_R)) {
+          ArrayType at;
+          at.inner = type;
+          return parseDeclaration(context, ++it, parent, context.getHandle(at), isFinal, isStatic, lineNumber, charIndex);
         }
       }
-      if (type_handle t = get_typekw_handle(it->get_reserved_token())) {
-        if (type_id)
-          throw syntax_error("name has already been specified as type '" + std::to_string(type_id) + "'.", it->get_line_number(), it->get_char_index(), std::to_string(type_id).length());
-        return parse_declare(context, ++it, parent, t, is_final, is_static, line_number, char_index);
+      if (TypeHandle t = getTypeFromKeyword(it->getReservedToken())) {
+        if (type)
+          throw SyntaxError("variable has already been specified as type '" + typeHandleRepr(type) + "'.", it->lineNumber(), it->charIndex(), typeHandleRepr(type).length());
+        return parseDeclaration(context, ++it, parent, t, isFinal, isStatic, lineNumber, charIndex);
       }
-      throw unexpected_syntax_error(std::to_string(*it), it->get_line_number(), it->get_char_index(), false);
-    } else if (it->is_identifier()) {
-      if (!type_id)
-        throw syntax_error("missing type name in variable declaration.", it->get_line_number(), it->get_char_index(), 0);
-      const std::string id_name = it->get_identifier().name;
-      if (context.find(id_name))
-        throw semantic_error("variable '" + id_name + "' already exists in the current scope.", it->get_line_number(), it->get_char_index(), id_name.size());
+      throw SyntaxError_unexpected(it->toString(), it->lineNumber(), it->charIndex(), false);
+    } else if (it->isIdentifier()) {
+      if (!type)
+        throw SyntaxError("missing type name in variable declaration.", it->lineNumber(), it->charIndex(), 0);
+      const std::string name = it->getIdentifier().name;
+      if (context.find(name))
+        throw SemanticError("variable '" + name + "' already exists in the current scope.", it->lineNumber(), it->charIndex(), name.length());
       ++it;
-      if (it->is_reserved_token() && it->get_reserved_token() == reserved_token::lparen) {
+      if (it->isReservedToken() && it->getReservedToken() == ReservedToken::ROUND_L) {
         // Function declaration
-        std::vector<identifier_info> param_infos;
-        std::vector<std::string> param_names;
-        context.enter_function();
-        function_type ft;
-        ft.returning = type_id;
-        while (!it->is_reserved_token() || it->get_reserved_token() != reserved_token::rparen) {
+        std::vector<IdentifierInfo> paramInfos;
+        std::vector<std::string> paramNames;
+        context.enterFunction();
+        FuncType ft;
+        ft.returnType = type;
+        while (!it->hasValue(ReservedToken::ROUND_R)) {
           ++it;
-          if (!it->is_reserved_token())
-            throw syntax_error("expected a parameter type name.", it->get_line_number(), it->get_char_index(), 0);
-          type_handle param_type = get_typekw_handle(it->get_reserved_token());
-          if (!param_type)
-            throw unexpected_syntax_error(std::to_string(*it), it->get_line_number(), it->get_char_index(), false);
+          if (!it->isReservedToken())
+            throw SyntaxError("expected a parameter type name.", it->lineNumber(), it->charIndex(), 0);
+          TypeHandle paramType = getTypeFromKeyword(it->getReservedToken());
+          if (!paramType)
+            throw SyntaxError_unexpected(it->toString(), it->lineNumber(), it->charIndex(), false);
           ++it;
           while (true) {
-            if (it->is_reserved_token() && it->get_reserved_token() == reserved_token::lbrckt) {
-              // [] Nest type into an array
+            if (it->hasValue(ReservedToken::SQUARE_L)) {
+              // Nest type into an array []
               ++it;
-              if (!it->is_reserved_token() || it->get_reserved_token() != reserved_token::rbrckt)
-                throw unexpected_syntax_error(std::to_string(*it), it->get_line_number(), it->get_char_index(), false);
-              array_type at;
-              at.inner = param_type;
-              param_type = context.get_handle(at);
+              if (!it->hasValue(ReservedToken::SQUARE_R))
+                throw SyntaxError_unexpected(it->toString(), it->lineNumber(), it->charIndex(), false);
+              ArrayType at;
+              at.inner = paramType;
+              paramType = context.getHandle(at);
               ++it;
               continue;
-            } else if (it->is_reserved_token() && it->get_reserved_token() == reserved_token::ellipsis) {
+            } else if (it->hasValue(ReservedToken::ELLIPSIS)) {
               // ... Make into arg catcher (only one allowed per signature)
-              if (ft.has_varargs)
-                throw unexpected_syntax_error(std::to_string(*it), it->get_line_number(), it->get_char_index(), false);
-              ft.has_varargs = true;
-              array_type at;
-              at.inner = param_type;
-              param_type = context.get_handle(at);
+              if (ft.hasArgCatch)
+                throw SyntaxError_unexpected(it->toString(), it->lineNumber(), it->charIndex(), false);
+              ft.hasArgCatch = true;
+              ArrayType at;
+              at.inner = paramType;
+              paramType = context.getHandle(at);
               ++it;
               continue;
-            } else if (it->is_identifier()) {
-              const std::string param_name = it->get_identifier().name;
-              identifier_info param_info = *context.create_param(param_name, param_type);
-              param_infos.push_back(param_info);
-              param_names.push_back(param_name);
-              ft.params.push_back(param_type);
+            } else if (it->isIdentifier()) {
+              const std::string paramName = it->getIdentifier().name;
+              IdentifierInfo paramInfo = *context.createParam(paramName, paramType);
+              paramInfos.push_back(paramInfo);
+              paramNames.push_back(paramName);
+              ft.paramTypes.push_back(paramType);
               ++it;
               break;
             }
-            throw unexpected_syntax_error(std::to_string(*it), it->get_line_number(), it->get_char_index(), 1);
+            throw SyntaxError_unexpected(it->toString(), it->lineNumber(), it->charIndex(), 1);
           }
-          if (!it->is_reserved_token() || (it->get_reserved_token() != reserved_token::rparen && it->get_reserved_token() != reserved_token::comma))
-            throw unexpected_syntax_error(std::to_string(*it), it->get_line_number(), it->get_char_index(), true);
+          if (!it->hasValue(ReservedToken::COMMA) && !it->hasValue(ReservedToken::ROUND_R))
+            throw SyntaxError_unexpected(it->toString(), it->lineNumber(), it->charIndex(), true);
         }
         ++it;
-        statement::ptr exec;
-        if (it->is_reserved_token() && it->get_reserved_token() == reserved_token::semic)
-          exec = std::make_shared<statement_empty>(parent, line_number, char_index);
-        else if (it->is_reserved_token() && it->get_reserved_token() == reserved_token::lbrace)
-          exec = parse_statement(context, it, nullptr, false, true, false, false, false, true, false);
+        Statement::Ptr exec;
+        if (it->hasValue(ReservedToken::SEMICOLON))
+          exec = std::make_shared<StatementEmpty>(parent, lineNumber, charIndex);
+        else if (it->hasValue(ReservedToken::CURLY_L))
+          exec = parseStatement(context, it, nullptr, false, true, false, false, false, true, false);
         else
-          throw unexpected_syntax_error(std::to_string(*it), it->get_line_number(), it->get_char_index(), false);
-        context.leave_scope();
-        const identifier_info* id_info = context.create_identifier(id_name, context.get_handle(ft), is_final, is_static);
-        statement::ptr stmt = std::make_shared<statement_decfunc>(parent, id_info, std::move(id_name), param_infos, param_names, exec, line_number, char_index);
-        exec->set_parent(stmt);
+          throw SyntaxError_unexpected(it->toString(), it->lineNumber(), it->charIndex(), false);
+        context.leaveScope();
+        const IdentifierInfo* info = context.createIdentifier(name, context.getHandle(ft), isFinal, isStatic);
+        Statement::Ptr stmt = std::make_shared<StatementDecfunc>(parent, info, std::move(name), paramInfos, paramNames, exec, lineNumber, charIndex);
+        exec->setParent(stmt);
         return stmt;
       }
       // Variable declaration
-      const identifier_info* id_info = context.create_identifier(id_name, type_id, is_final, is_static);
-      statement::ptr value;
-      if (it->is_reserved_token() && it->get_reserved_token() == reserved_token::equal)
-        value = parse_statement(context, ++it, nullptr, false, false, false, false, false, true, true);
+      const IdentifierInfo* info = context.createIdentifier(name, type, isFinal, isStatic);
+      Statement::Ptr value;
+      if (it->hasValue(ReservedToken::EQUAL))
+        value = parseStatement(context, ++it, nullptr, false, false, false, false, false, true, true);
       else
-        value = std::make_shared<statement_empty>(nullptr, it->get_line_number(), it->get_char_index());
-      if (!it->is_reserved_token() || (it->get_reserved_token() != reserved_token::semic && it->get_reserved_token() != reserved_token::colon))
-        throw unexpected_syntax_error(std::to_string(*it), it->get_line_number(), it->get_char_index(), true);
-      statement::ptr stmt = std::make_shared<statement_declare>(parent, id_info, std::move(id_name), value, line_number, char_index);
-      value->set_parent(stmt);
+        value = std::make_shared<StatementEmpty>(nullptr, it->lineNumber(), it->charIndex());
+      if (!it->hasValue(ReservedToken::SEMICOLON) && !it->hasValue(ReservedToken::COLON))
+        throw SyntaxError_unexpected(it->toString(), it->lineNumber(), it->charIndex(), true);
+      Statement::Ptr stmt = std::make_shared<StatementDeclare>(parent, info, std::move(name), value, lineNumber, charIndex);
+      value->setParent(stmt);
       return stmt;
     }
-    throw unexpected_error(std::to_string(*it), it->get_line_number(), it->get_char_index(), true);
+    throw SyntaxError_unexpected(it->toString(), it->lineNumber(), it->charIndex(), true);
   }
 
-  statement::ptr parse_statement(compiler_context& context, tokens_iterator& it, statement::ptr parent, bool allow_empty, bool allow_return, bool allow_break, bool allow_continue, bool allow_switch_case, bool allow_declare, bool require_eval_value) {
-    size_t line_number = it->get_line_number();
-    size_t char_index = it->get_char_index();
+  Statement::Ptr parseStatement(CompilerContext& context, TokenIterator& it, Statement::Ptr parent, bool allowEmpty, bool allowReturn, bool allowBreak, bool allowContinue, bool allowSwitchCase, bool allowDeclare, bool requireEvalValue) {
+    size_t lineNumber = it->lineNumber();
+    size_t charIndex = it->charIndex();
 
-    statement::ptr parsed_stmt;
-    bool is_expr = false;
+    Statement::Ptr parsed;
+    bool isExpr = false;
 
-    if (it->is_reserved_token()) {
-      switch (it->get_reserved_token()) {
-        // Statement is empty
-        case reserved_token::semic: {
-          if (!allow_empty)
-            throw semantic_error("expected a statement at this position.", line_number, char_index, 0);
-          parsed_stmt = std::make_shared<statement_empty>(parent, line_number, char_index);
+    if (it->isReservedToken()) {
+      switch (it->getReservedToken()) {
+        // StatementEmpty
+        case ReservedToken::SEMICOLON: {
+          if (!allowEmpty)
+            throw SyntaxError("expected a statement at this position.", lineNumber, charIndex, 0);
+          parsed = std::make_shared<StatementEmpty>(parent, lineNumber, charIndex);
           break;
         }
         
-        // Statement is a block of code
+        // StatementBlock
         // {...}
-        case reserved_token::lbrace: {
-          if (require_eval_value)
-            throw semantic_error("expected an evaluable statement, got code block instead.", line_number, char_index, 1);
+        case ReservedToken::CURLY_L: {
+          if (requireEvalValue)
+            throw SyntaxError("expected an evaluable statement, got code block instead.", lineNumber, charIndex, 1);
           ++it;
-          std::vector<statement::ptr> contents;
-          for (; !it->is_reserved_token() || it->get_reserved_token() != reserved_token::rbrace; ++it) {
-            if (it->is_eof())
-              throw syntax_error("could not find a matching '}'.", line_number, char_index, 0);
-            statement::ptr stmt = parse_statement(context, it, nullptr, true, allow_return, allow_break, allow_continue, false, true, false);
-            if (stmt->get_stmt_type() != statement_type::empty_s)
+          std::vector<Statement::Ptr> contents;
+          for (; !it->hasValue(ReservedToken::CURLY_R); ++it) {
+            if (it->isEof())
+              throw SyntaxError("could not find a matching '}'.", lineNumber, charIndex, 0);
+            Statement::Ptr stmt = parseStatement(context, it, nullptr, true, allowReturn, allowBreak, allowContinue, false, true, false);
+            if (stmt->type() != StatementType::EMPTY)
               contents.push_back(stmt);
           }
-          parsed_stmt = std::make_shared<statement_block>(parent, contents, line_number, char_index);
-          // std::vector<statement::ptr>& contents_ref = parsed_stmt->get_contents();
+          parsed = std::make_shared<StatementBlock>(parent, contents, lineNumber, charIndex);
+          // std::vector<Statement::Ptr>& contents_ref = parsed_stmt->get_contents();
           // for (size_t i = 0; i < contents_ref.size(); i++) {
           //   contents_ref[i]->set_parent(parsed_stmt);
           // }
           break;
         }
 
-        // Statement returns value
+        // StatementReturn
         // return [...];
-        case reserved_token::kw_return: {
-          if (!allow_return)
-            throw semantic_error("encountered 'return' outside function definition.", line_number, char_index, 6);
-          if (require_eval_value)
-            throw semantic_error("expected an evaluable statement, got 'return' instead.", line_number, char_index, 6);
+        case ReservedToken::KW_RETURN: {
+          if (!allowReturn)
+            throw SemanticError("encountered 'return' outside function definition.", lineNumber, charIndex, 6);
+          if (requireEvalValue)
+            throw SyntaxError("expected an evaluable statement, got 'return' instead.", lineNumber, charIndex, 6);
           ++it;
-          statement::ptr stmt = parse_statement(context, it, nullptr, true, false, false, false, false, true, true);
-          parsed_stmt = std::make_shared<statement_return>(parent, stmt, line_number, char_index);
-          stmt->set_parent(parsed_stmt);
+          Statement::Ptr stmt = parseStatement(context, it, nullptr, true, false, false, false, false, true, true);
+          parsed = std::make_shared<StatementReturn>(parent, stmt, lineNumber, charIndex);
+          stmt->setParent(parsed);
           break;
         }
 
-        // Statement breaks flow
+        // StatementBreak
         // break;
-        case reserved_token::kw_break: {
-          if (!allow_break)
-            throw semantic_error("encountered 'break' outside loop/switch.", line_number, char_index, 5);
-          if (require_eval_value)
-            throw semantic_error("expected an evaluable statement, got 'break' instead.", line_number, char_index, 5);
+        case ReservedToken::KW_BREAK: {
+          if (!allowBreak)
+            throw SemanticError("encountered 'break' outside loop/switch.", lineNumber, charIndex, 5);
+          if (requireEvalValue)
+            throw SyntaxError("expected an evaluable statement, got 'break' instead.", lineNumber, charIndex, 5);
           ++it;
-          if (!it->is_reserved_token() || it->get_reserved_token() != reserved_token::semic)
-            throw semantic_error("unexpected statement within 'break'.", it->get_line_number(), it->get_char_index(), 0);
-          parsed_stmt = std::make_shared<statement_break>(parent, line_number, char_index);
-          break; // ironic.
+          if (!it->hasValue(ReservedToken::SEMICOLON))
+            throw SyntaxError("unexpected statement within 'break'.", it->lineNumber(), it->charIndex(), 0);
+          parsed = std::make_shared<StatementBreak>(parent, lineNumber, charIndex);
+          break; // ironic...
         }
 
-        // Statement continues loop
+        // StatementContinue
         // continue;
-        case reserved_token::kw_continue: {
-          if (!allow_continue)
-            throw semantic_error("encountered 'continue' outside loop.", line_number, char_index, 8);
-          if (require_eval_value)
-            throw semantic_error("expected an evaluable statement, got 'continue' instead.", line_number, char_index, 8);
+        case ReservedToken::KW_CONTINUE: {
+          if (!allowContinue)
+            throw SemanticError("encountered 'continue' outside loop.", lineNumber, charIndex, 8);
+          if (requireEvalValue)
+            throw SyntaxError("expected an evaluable statement, got 'continue' instead.", lineNumber, charIndex, 8);
           ++it;
-          if (!it->is_reserved_token() || it->get_reserved_token() != reserved_token::semic)
-            throw semantic_error("unexpected statement within 'continue'.", it->get_line_number(), it->get_char_index(), 0);
-          parsed_stmt = std::make_shared<statement_continue>(parent, line_number, char_index);
+          if (!it->hasValue(ReservedToken::SEMICOLON))
+            throw SyntaxError("unexpected statement within 'continue'.", it->lineNumber(), it->charIndex(), 0);
+          parsed = std::make_shared<StatementContinue>(parent, lineNumber, charIndex);
           break;
         }
 
-        // Statement contains if-else
+        // StatementIfElse
         // if (...) ...; [else ...;]
-        case reserved_token::kw_if: {
-          if (require_eval_value)
-            throw semantic_error("expected an evaluable statement, got 'if' instead.", line_number, char_index, 2);
+        case ReservedToken::KW_IF: {
+          if (requireEvalValue)
+            throw SyntaxError("expected an evaluable statement, got 'if' instead.", lineNumber, charIndex, 2);
           ++it;
-          if (!it->is_reserved_token() || it->get_reserved_token() != reserved_token::lparen)
-            throw syntax_error("expected opening '(' after 'if' keyword.", it->get_line_number(), it->get_char_index(), 0);
+          if (!it->hasValue(ReservedToken::ROUND_L))
+            throw SyntaxError("expected opening '(' after 'if' keyword.", it->lineNumber(), it->charIndex(), 0);
           ++it;
-          statement::ptr if_condition = parse_statement(context, it, nullptr, false, false, false, false, false, true, true);
-          if (!it->is_reserved_token() || it->get_reserved_token() != reserved_token::rparen)
-            throw syntax_error("expected closing ')' after 'if' condition.", it->get_line_number(), it->get_char_index(), 0);
+          Statement::Ptr ifCondition = parseStatement(context, it, nullptr, false, false, false, false, false, true, true);
+          if (!it->hasValue(ReservedToken::ROUND_R))
+            throw SyntaxError("expected closing ')' after 'if' condition.", it->lineNumber(), it->charIndex(), 0);
           ++it;
-          if (it->is_reserved_token() && it->get_reserved_token() == reserved_token::kw_else)
-            throw syntax_error("expected statement between 'if' and 'else' clauses.", it->get_line_number(), it->get_char_index(), 0);
-          statement::ptr do_if = parse_statement(context, it, nullptr, false, allow_return, allow_break, allow_continue, false, true, false);
-          token saved_token = *it;
+          if (it->hasValue(ReservedToken::KW_ELSE))
+            throw SyntaxError("expected statement between 'if' and 'else' clauses.", it->lineNumber(), it->charIndex(), 0);
+          Statement::Ptr doIf = parseStatement(context, it, nullptr, false, allowReturn, allowBreak, allowContinue, false, true, false);
+          Token savedToken = *it;
           ++it;
-          statement::ptr do_else;
-          if (it->is_reserved_token() && it->get_reserved_token() == reserved_token::kw_else)
-            do_else = parse_statement(context, ++it, nullptr, false, allow_return, allow_break, allow_continue, false, true, false);
+          Statement::Ptr doElse;
+          if (it->hasValue(ReservedToken::KW_ELSE))
+            doElse = parseStatement(context, ++it, nullptr, false, allowReturn, allowBreak, allowContinue, false, true, false);
           else {
-            do_else = std::make_shared<statement_empty>(nullptr, it->get_line_number(), it->get_char_index());
-            // A bit hacky, but for all intents and purposes, it should work
-            it.move_back(saved_token);
+            doElse = std::make_shared<StatementEmpty>(nullptr, it->lineNumber(), it->charIndex());
+            // Hacky method of stepping back if there's no else statement
+            it.stepBack(savedToken);
           }
-          parsed_stmt = std::make_shared<statement_if_else>(parent, if_condition, do_if, do_else, line_number, char_index);
-          if_condition->set_parent(parsed_stmt);
-          do_if->set_parent(parsed_stmt);
-          do_else->set_parent(parsed_stmt);
+          parsed = std::make_shared<StatementIfElse>(parent, ifCondition, doIf, doElse, lineNumber, charIndex);
+          ifCondition->setParent(parsed);
+          doIf->setParent(parsed);
+          doElse->setParent(parsed);
           break;
         }
-        case reserved_token::kw_elif: // Should never be encountered, as "elif" is internally converted to "else if" when tokenizing
-        case reserved_token::kw_else: {
-          throw semantic_error("encountered 'else' without supporting 'if' statement.", line_number, char_index, 4);
-        }
+
+        case ReservedToken::KW_ELIF: // Should never be encountered, as "elif" is internally converted to "else if" when tokenizing
+        case ReservedToken::KW_ELSE:
+          throw SyntaxError("encountered 'else' without supporting 'if' statement.", lineNumber, charIndex, 4);
         
-        // Statement contains while loop
+        // StatementWhile
         // while (...) ...;
-        case reserved_token::kw_while: {
-          if (require_eval_value)
-            throw semantic_error("expected an evaluable statement, got 'while' instead.", line_number, char_index, 5);
+        case ReservedToken::KW_WHILE: {
+          if (requireEvalValue)
+            throw SyntaxError("expected an evaluable statement, got 'while' instead.", lineNumber, charIndex, 5);
           ++it;
-          if (!it->is_reserved_token() || it->get_reserved_token() != reserved_token::lparen)
-            throw syntax_error("expected opening '(' after 'while' keyword.", it->get_line_number(), it->get_char_index(), 0);
+          if (!it->hasValue(ReservedToken::ROUND_L))
+            throw SyntaxError("expected opening '(' after 'while' keyword.", it->lineNumber(), it->charIndex(), 0);
           ++it;
-          statement::ptr while_condition = parse_statement(context, it, nullptr, false, false, false, false, false, true, true);
-          if (!it->is_reserved_token() || it->get_reserved_token() != reserved_token::rparen)
-            throw syntax_error("expected closing ')' after while loop declaration.", it->get_line_number(), it->get_char_index(), 0);
+          Statement::Ptr whileCondition = parseStatement(context, it, nullptr, false, false, false, false, false, true, true);
+          if (!it->hasValue(ReservedToken::ROUND_R))
+            throw SyntaxError("expected closing ')' after while loop declaration.", it->lineNumber(), it->charIndex(), 0);
           ++it;
-          statement::ptr while_looped = parse_statement(context, it, nullptr, true, allow_return, true, true, false, true, false);
-          parsed_stmt = std::make_shared<statement_while>(parent, while_condition, while_looped, line_number, char_index);
-          while_condition->set_parent(parsed_stmt);
-          while_looped->set_parent(parsed_stmt);
+          Statement::Ptr whileLooped = parseStatement(context, it, nullptr, true, allowReturn, true, true, false, true, false);
+          parsed = std::make_shared<StatementWhile>(parent, whileCondition, whileLooped, lineNumber, charIndex);
+          whileCondition->setParent(parsed);
+          whileLooped->setParent(parsed);
           break;
         }
         
-        // Statement contains do-while loop
+        // StatementDoWhile
         // do ... while (...);
-        case reserved_token::kw_do: {
-          if (require_eval_value)
-            throw semantic_error("expected an evaluable statement, got 'do' instead.", line_number, char_index, 2);
+        case ReservedToken::KW_DO: {
+          if (requireEvalValue)
+            throw SemanticError("expected an evaluable statement, got 'do' instead.", lineNumber, charIndex, 2);
           ++it;
-          statement::ptr do_while_looped = parse_statement(context, it, nullptr, false, allow_return, true, true, false, true, false);
-          if (!it->is_reserved_token() || it->get_reserved_token() != reserved_token::kw_while)
-            throw syntax_error("expected 'while' keyword following 'do' clause.", it->get_line_number(), it->get_char_index(), 0);
+          Statement::Ptr doWhileLooped = parseStatement(context, it, nullptr, false, allowReturn, true, true, false, true, false);
+          if (!it->hasValue(ReservedToken::KW_WHILE))
+            throw SyntaxError("expected 'while' keyword following 'do' statement.", it->lineNumber(), it->charIndex(), 0);
           ++it;
-          if (!it->is_reserved_token() || it->get_reserved_token() != reserved_token::lparen)
-            throw syntax_error("expected opening '(' after 'do' keyword.", it->get_line_number(), it->get_char_index(), 0);
+          if (!it->hasValue(ReservedToken::ROUND_L))
+            throw SyntaxError("expected opening '(' after 'do' keyword.", it->lineNumber(), it->charIndex(), 0);
           ++it;
-          statement::ptr do_while_condition = parse_statement(context, it, nullptr, false, false, false, false, false, true, true);
-          if (!it->is_reserved_token() || it->get_reserved_token() != reserved_token::rparen)
-            throw syntax_error("expected closing ')' after do-while loop declaration.", it->get_line_number(), it->get_char_index(), 0);
-          parsed_stmt = std::make_shared<statement_do_while>(parent, do_while_condition, do_while_looped, line_number, char_index);
-          do_while_condition->set_parent(parsed_stmt);
-          do_while_looped->set_parent(parsed_stmt);
+          Statement::Ptr doWhileCondition = parseStatement(context, it, nullptr, false, false, false, false, false, true, true);
+          if (!it->hasValue(ReservedToken::ROUND_R))
+            throw SyntaxError("expected closing ')' after loop condition.", it->lineNumber(), it->charIndex(), 0);
+          parsed = std::make_shared<StatementDoWhile>(parent, doWhileCondition, doWhileLooped, lineNumber, charIndex);
+          doWhileCondition->setParent(parsed);
+          doWhileLooped->setParent(parsed);
           break;
         }
         
-        // Statement contains for/for-each loop
+        // StatementFor, StatementForeach
         // for ([...]; [...]; [...]) ...;
         // for (... : ...) ...;
-        case reserved_token::kw_for: {
-          if (require_eval_value)
-            throw semantic_error("expected an evaluable statement, got 'for' instead.", line_number, char_index, 3);
+        case ReservedToken::KW_FOR: {
+          if (requireEvalValue)
+            throw SyntaxError("expected an evaluable statement, got 'for' instead.", lineNumber, charIndex, 3);
           ++it;
-          if (!it->is_reserved_token() || it->get_reserved_token() != reserved_token::lparen)
-            throw syntax_error("expected opening '(' after 'for' keyword.", it->get_line_number(), it->get_char_index(), 0);
+          if (!it->hasValue(ReservedToken::ROUND_L))
+            throw SyntaxError("expected opening '(' after 'for' keyword.", it->lineNumber(), it->charIndex(), 0);
           ++it;
+
           // Get first statement in declaration (for: init, for-each: iterator)
-          statement::ptr for_first = parse_statement(context, it, nullptr, true, false, false, false, false, true, false);
-          // Determine from end of first statement whether to build a for (;) or for-each (:) loop
-          bool is_foreach;
-          if (it->is_reserved_token() && it->get_reserved_token() == reserved_token::semic)
-            is_foreach = false;
-          else if (it->is_reserved_token() && it->get_reserved_token() == reserved_token::colon)
-            is_foreach = true;
+          Statement::Ptr forFirst = parseStatement(context, it, nullptr, true, false, false, false, false, true, false);
+          // Determine from end of first statement whether to build a for (;) or foreach (:) loop
+          bool isForeach;
+          if (it->hasValue(ReservedToken::SEMICOLON))
+            isForeach = false;
+          else if (it->hasValue(ReservedToken::COLON))
+            isForeach = true;
           else
-            throw syntax_error("expected ';' or ':', got '" + std::to_string(*it) + "' instead.", it->get_line_number(), it->get_char_index(), 0);
-          // Check according to whether loop is for or for-each
-          if (is_foreach && for_first->get_stmt_type() == statement_type::empty_s)
-            throw syntax_error("expected a declaration statement before ':' in for-each loop declaration.", it->get_line_number(), it->get_char_index(), 1);
-          if (is_foreach) {
-            if (for_first->get_stmt_type() != statement_type::declare_s)
-              throw syntax_error("an iterator variable must be declared before ':'.", it->get_line_number(), it->get_char_index(), 1);
+            throw SyntaxError("expected ';' or ':', got '" + it->toString() + "' instead.", it->lineNumber(), it->charIndex(), 0);
+
+          // Check according to whether loop is for or foreach
+          if (isForeach && forFirst->type() == StatementType::EMPTY)
+            throw SyntaxError("expected a declaration statement before ':' in for-each loop declaration.", it->lineNumber(), it->charIndex(), 1);
+
+          if (isForeach) {
+            // Foreach loop (:)
+            if (forFirst->type() != StatementType::DECLARE)
+              throw SyntaxError("an iterator variable must be declared before ':'.", it->lineNumber(), it->charIndex(), 1);
             ++it;
-            statement::ptr for_iter = parse_statement(context, it, nullptr, false, false, false, false, false, false, true);
-            if (!it->is_reserved_token() || it->get_reserved_token() != reserved_token::rparen)
-              throw syntax_error("expected closing ')' after for-each loop declaration.", it->get_line_number(), it->get_char_index(), 0);
+            Statement::Ptr forIter = parseStatement(context, it, nullptr, false, false, false, false, false, false, true);
+            if (!it->hasValue(ReservedToken::ROUND_R))
+              throw SyntaxError("expected closing ')' after for-each loop declaration.", it->lineNumber(), it->charIndex(), 0);
             ++it;
-            statement::ptr for_looped = parse_statement(context, it, nullptr, true, allow_return, true, true, false, true, false);
-            parsed_stmt = std::make_shared<statement_foreach>(parent, for_first, for_iter, for_looped, line_number, char_index);
-            for_first->set_parent(parsed_stmt);
-            for_iter->set_parent(parsed_stmt);
-            for_looped->set_parent(parsed_stmt);
+            Statement::Ptr forLooped = parseStatement(context, it, nullptr, true, allowReturn, true, true, false, true, false);
+            parsed = std::make_shared<StatementForeach>(parent, forFirst, forIter, forLooped, lineNumber, charIndex);
+            forFirst->setParent(parsed);
+            forIter->setParent(parsed);
+            forLooped->setParent(parsed);
+
           } else {
+            // Regular for loop (;)
             ++it;
-            statement::ptr for_condition = parse_statement(context, it, nullptr, false, false, false, false, false, false, true);
-            if (!it->is_reserved_token() || it->get_reserved_token() != reserved_token::semic)
-              throw syntax_error("expected ';', got '" + std::to_string(*it) + "' instead.", it->get_line_number(), it->get_char_index(), 0);
+            Statement::Ptr forCondition = parseStatement(context, it, nullptr, false, false, false, false, false, false, true);
+            if (!it->hasValue(ReservedToken::SEMICOLON))
+              throw SyntaxError("expected ';', got '" + it->toString() + "' instead.", it->lineNumber(), it->charIndex(), 0);
             ++it;
-            statement::ptr for_on_iter = parse_statement(context, it, nullptr, true, allow_return, true, true, false, true, false);
-            if (!it->is_reserved_token() || it->get_reserved_token() != reserved_token::rparen)
-              throw syntax_error("expected closing ')' after for loop declaration.", it->get_line_number(), it->get_char_index(), 0);
+            Statement::Ptr forOnIter = parseStatement(context, it, nullptr, true, allowReturn, true, true, false, true, false);
+            if (!it->hasValue(ReservedToken::ROUND_R))
+              throw SyntaxError("expected closing ')' after for loop declaration.", it->lineNumber(), it->charIndex(), 0);
             ++it;
-            statement::ptr for_looped = parse_statement(context, it, nullptr, true, allow_return, true, true, false, true, false);
-            parsed_stmt = std::make_shared<statement_for>(parent, for_first, for_condition, for_on_iter, for_looped, line_number, char_index);
-            for_first->set_parent(parsed_stmt);
-            for_condition->set_parent(parsed_stmt);
-            for_on_iter->set_parent(parsed_stmt);
-            for_looped->set_parent(parsed_stmt);
+            Statement::Ptr forLooped = parseStatement(context, it, nullptr, true, allowReturn, true, true, false, true, false);
+            parsed = std::make_shared<StatementFor>(parent, forFirst, forCondition, forOnIter, forLooped, lineNumber, charIndex);
+            forFirst->setParent(parsed);
+            forCondition->setParent(parsed);
+            forOnIter->setParent(parsed);
+            forLooped->setParent(parsed);
           }
           break;
         }
 
-        // Statement declares an identifier
-        case reserved_token::kw_final:
-          parsed_stmt = parse_declare(context, ++it, parent, nullptr, true, false, line_number, char_index);
+        // StatementDeclare, StatementDecfunc
+        case ReservedToken::KW_FINAL:
+          parsed = parseDeclaration(context, ++it, parent, nullptr, true, false, lineNumber, charIndex);
           break;
-        case reserved_token::kw_static:
-          parsed_stmt = parse_declare(context, ++it, parent, nullptr, false, true, line_number, char_index);
+        case ReservedToken::KW_STATIC:
+          parsed = parseDeclaration(context, ++it, parent, nullptr, false, true, lineNumber, charIndex);
           break;
-        case reserved_token::typekw_bool:
-          parsed_stmt = parse_declare(context, ++it, parent, type_registry::bool_handle(), false, false, line_number, char_index);
+        case ReservedToken::TYPE_ANY:
+        case ReservedToken::TYPE_BOOL:
+        case ReservedToken::TYPE_BYTE:
+        case ReservedToken::TYPE_CHAR:
+        case ReservedToken::TYPE_DOUBLE:
+        case ReservedToken::TYPE_FLOAT:
+        case ReservedToken::TYPE_INT:
+        case ReservedToken::TYPE_LONG:
+        case ReservedToken::TYPE_SHORT:
+        case ReservedToken::TYPE_STR:
+        case ReservedToken::TYPE_VOID: {
+          TypeHandle type = getTypeFromKeyword(it->getReservedToken());
+          parsed = parseDeclaration(context, ++it, parent, type, false, false, lineNumber, charIndex);
           break;
-        case reserved_token::typekw_byte:
-          parsed_stmt = parse_declare(context, ++it, parent, type_registry::byte_handle(), false, false, line_number, char_index);
-          break;
-        case reserved_token::typekw_char:
-          parsed_stmt = parse_declare(context, ++it, parent, type_registry::char_handle(), false, false, line_number, char_index);
-          break;
-        case reserved_token::typekw_double:
-          parsed_stmt = parse_declare(context, ++it, parent, type_registry::double_handle(), false, false, line_number, char_index);
-          break;
-        case reserved_token::typekw_float:
-          parsed_stmt = parse_declare(context, ++it, parent, type_registry::float_handle(), false, false, line_number, char_index);
-          break;
-        case reserved_token::typekw_int:
-          parsed_stmt = parse_declare(context, ++it, parent, type_registry::int_handle(), false, false, line_number, char_index);
-          break;
-        case reserved_token::typekw_long:
-          parsed_stmt = parse_declare(context, ++it, parent, type_registry::long_handle(), false, false, line_number, char_index);
-          break;
-        case reserved_token::typekw_short:
-          parsed_stmt = parse_declare(context, ++it, parent, type_registry::short_handle(), false, false, line_number, char_index);
-          break;
-        case reserved_token::typekw_str:
-          parsed_stmt = parse_declare(context, ++it, parent, type_registry::str_handle(), false, false, line_number, char_index);
-          break;
-        case reserved_token::typekw_void:
-          parsed_stmt = parse_declare(context, ++it, parent, type_registry::void_handle(), false, false, line_number, char_index);
-          break;
+        }
 
-        // Statement contains only an expression
+        // StatementExpr
         default:
-          is_expr = true;
+          isExpr = true;
           break;
       }
     } else {
-      // Statement contains only an expression
-      is_expr = true;
+      // Treat the statement as an expression
+      isExpr = true;
     }
 
-    if (is_expr) {
-      node_ptr expr_root = parse_expression_tree(context, it, type_registry::void_handle(), false, false, false);
-      parsed_stmt = std::make_shared<statement_expr>(parent, expr_root, line_number, char_index);
+    if (isExpr) {
+      Expression::Ptr expr = generateParseTree(context, it, TypeRegistry::voidHandle(), false, false, false);
+      parsed = std::make_shared<StatementExpr>(parent, expr, lineNumber, charIndex);
     }
 
-    // Failsafe to prevent potential issues with assuming that parsed_stmt is present
-    if (!parsed_stmt || (!allow_empty && parsed_stmt->get_stmt_type() == statement_type::empty_s))
-      throw syntax_error("expected a statement at this position.", line_number, char_index, 0);
+    // Failsafe to prevent potential issues with assuming that the statement is present
+    if (!parsed || (!allowEmpty && parsed->type() == StatementType::EMPTY))
+      throw SyntaxError("expected a statement at this position.", lineNumber, charIndex, 0);
 
-    return parsed_stmt;
+    return parsed;
   }
 
-  std::vector<statement::ptr>& parse_code_statements(compiler_context& context, tokens_iterator& it, std::vector<statement::ptr>& parsed_code) {
-    statement::ptr code_parent = std::make_shared<statement_block>(nullptr, parsed_code, 0, 0);
-    while (!it->is_eof()) {
-      // std::cout << "parsing statement" << std::endl;
-      statement::ptr parsed_stmt = parse_statement(context, it, code_parent, true, false, false, false, false, true, false);
-      if (parsed_stmt && parsed_stmt->get_stmt_type() != statement_type::empty_s) {
-        parsed_code.push_back(parsed_stmt);
-      }
-      ++it;
+  std::vector<Statement::Ptr> parseCode(CompilerContext& context, TokenIterator& it) {
+    std::vector<Statement::Ptr> code;
+    for (; !it->isEof(); ++it) {
+      Statement::Ptr parsed = parseStatement(context, it, nullptr, true, false, false, false, false, true, false);
+      if (parsed->type() != StatementType::EMPTY)
+        code.push_back(parsed);
     }
-    // std::cout << "done parsing" << std::endl;
-    return parsed_code;
+    return std::move(code);
   }
+  
 }

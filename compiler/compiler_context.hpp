@@ -1,92 +1,92 @@
-#ifndef COMPILER_CONTEXT_HPP
-#define COMPILER_CONTEXT_HPP
+#pragma once
 
 #include <memory>
 #include <unordered_map>
 
 #include "types.hpp"
 
+
 namespace valley {
-  class identifier_info {
-    private:
-      type_handle _type_id;
-      size_t _index;
-      bool _global;
-      bool _final;
-      bool _static;
 
-    public:
-      identifier_info(type_handle type_id, size_t index, bool is_global, bool is_final, bool is_static);
+  class IdentifierInfo {
+  private:
+    TypeHandle _type;
+    size_t _index;
+    bool _global;
+    bool _final;
+    bool _static;
 
-      type_handle type_id() const;
-      size_t index() const;
-      bool is_global() const;
-      bool is_final() const;
-      bool is_static() const;
+  public:
+    IdentifierInfo(TypeHandle type, size_t index, bool isGlobal, bool isFinal, bool isStatic);
+
+    TypeHandle type() const;
+    size_t index() const;
+    bool isGlobal() const;
+    bool isFinal() const;
+    bool isStatic() const;
   };
 
-  class identifier_lookup {
-    private:
-      std::unordered_map<std::string, identifier_info> _identifiers;
-    
-    protected:
-      const identifier_info* insert_identifier(std::string name, type_handle type_id, size_t index, bool is_global, bool is_final, bool is_static);
-      size_t identifiers_size() const;
+  class IdentifierLookup {
+  private:
+    std::unordered_map<std::string, IdentifierInfo> _identifiers;
+  
+  protected:
+    const IdentifierInfo* insertIdentifier(std::string name, TypeHandle type, size_t index, bool isGlobal, bool isFinal, bool isStatic);
+    size_t size() const;
 
-    public:
-      virtual ~identifier_lookup();
+  public:
+    virtual ~IdentifierLookup();
 
-      virtual const identifier_info* find(const std::string& name) const;
-      virtual const identifier_info* create_identifier(std::string name, type_handle type_id, bool is_final, bool is_static) = 0;
+    virtual const IdentifierInfo* find(const std::string& name) const;
+    virtual const IdentifierInfo* createIdentifier(std::string name, TypeHandle type, bool isFinal, bool isStatic) = 0;
   };
 
-  class global_identifier_lookup: public identifier_lookup {
-    public:
-      const identifier_info* create_identifier(std::string name, type_handle type_id, bool is_final, bool is_static) override;
+  class GlobalIdentifierLookup: public IdentifierLookup {
+  public:
+    const IdentifierInfo* createIdentifier(std::string name, TypeHandle type, bool isFinal, bool isStatic) override;
   };
 
-  class local_identifier_lookup: public identifier_lookup {
-    private:
-      std::unique_ptr<local_identifier_lookup> _parent;
-      int _next_index;
+  class LocalIdentifierLookup: public IdentifierLookup {
+  private:
+    std::unique_ptr<LocalIdentifierLookup> _parent;
+    size_t _next_index;
 
-    public:
-      local_identifier_lookup(std::unique_ptr<local_identifier_lookup> parent_lookup);
+  public:
+    LocalIdentifierLookup(std::unique_ptr<LocalIdentifierLookup> parent);
 
-      const identifier_info* find(const std::string& name) const override;
-      const identifier_info* create_identifier(std::string name, type_handle type_id, bool is_final, bool is_static) override;
-      std::unique_ptr<local_identifier_lookup> detach_parent();
+    const IdentifierInfo* find(const std::string& name) const override;
+    const IdentifierInfo* createIdentifier(std::string name, TypeHandle type, bool isFinal, bool isStatic) override;
+    std::unique_ptr<LocalIdentifierLookup> detachParent();
   };
 
-  class function_identifier_lookup: public local_identifier_lookup {
-    private:
-      int _next_param_index;
-    
-    public:
-      function_identifier_lookup();
+  class FunctionIdentifierLookup: public LocalIdentifierLookup {
+  private:
+    size_t _next_param_index;
+  
+  public:
+    FunctionIdentifierLookup();
 
-      const identifier_info* create_param(std::string name, type_handle type_id);
+    const IdentifierInfo* createParam(std::string name, TypeHandle type);
   };
 
-  class compiler_context {
-    private:
-      global_identifier_lookup _globals;
-      std::unique_ptr<local_identifier_lookup> _locals;
-      function_identifier_lookup* _params;
-      type_registry _types;
-    
-    public:
-      compiler_context();
+  class CompilerContext {
+  private:
+    GlobalIdentifierLookup _globals;
+    std::unique_ptr<LocalIdentifierLookup> _locals;
+    FunctionIdentifierLookup* _params;
+    TypeRegistry _types;
+  
+  public:
+    CompilerContext();
 
-      type_handle get_handle(const type& t);
-      const identifier_info* find(const std::string& name) const;
-      const identifier_info* create_identifier(std::string name, type_handle type_id, bool is_final, bool is_static);
-      const identifier_info* create_param(std::string name, type_handle type_id);
+    TypeHandle getHandle(const Type& t);
+    const IdentifierInfo* find(const std::string& name) const;
+    const IdentifierInfo* createIdentifier(std::string name, TypeHandle type, bool isFinal, bool isStatic);
+    const IdentifierInfo* createParam(std::string name, TypeHandle type);
 
-      void enter_scope();
-      void enter_function();
-      bool leave_scope();
+    void enterScope();
+    void enterFunction();
+    bool leaveScope();
   };
+
 }
-
-#endif

@@ -1,150 +1,146 @@
 #include "tokenizer.hpp"
 
-#include <cctype>
-#include <cstdint>
-#include <cstdlib>
-#include <map>
-#include <stack>
-#include <string>
-
 #include "errors.hpp"
-#include "push_back_stream.hpp"
+
 
 namespace valley {
+
   namespace {
-    enum struct char_type {
-      eof,
-      whitespace,
-      alpha,
-      numeric,
-      other,
+
+    enum struct CharType {
+      END,
+      WHITESPACE,
+      ALPHA,
+      NUMERIC,
+      OTHER,
     };
 
-    char_type get_char_type(int c) {
-      if (c < 0) {
-        return char_type::eof;
-      }
-      if (std::isspace(c)) {
-        return char_type::whitespace;
-      }
-      if (std::isalpha(c) || c == '_') {
-        return char_type::alpha;
-      }
-      if (std::isdigit(c)) {
-        return char_type::numeric;
-      }
-      return char_type::other;
+    CharType getCharType(int c) {
+      if (c < 0)
+        return CharType::END;
+
+      if (std::isspace(c))
+        return CharType::WHITESPACE;
+      
+      if (std::isalpha(c) || c == '_')
+        return CharType::ALPHA;
+      
+      if (std::isdigit(c)) 
+        return CharType::NUMERIC;
+      
+      return CharType::OTHER;
     }
 
-    token fetch_word(push_back_stream& stream) {
-      size_t line_number = stream.line_number();
-      size_t char_index = stream.char_index();
+    Token fetchWord(PushBackStream& stream) {
+      size_t lineNumber = stream.lineNumber();
+      size_t charIndex = stream.charIndex();
 
       std::string word;
       int c = stream();
-      bool is_number = std::isdigit(c) || c == '.';
-      bool is_double = false;
+      bool isNumber = std::isdigit(c) || c == '.';
+      bool isDouble = false;
+
       do {
         word.push_back(char(c));
         c = stream();
-        if (is_number && c == '.') {
-          if (!is_double) {
-            is_double = true;
-          } else {
-            throw unexpected_error(std::string(1, char(c)), stream.char_index(), stream.line_number(), true);
-          }
+        if (isNumber && c == '.') {
+          if (!isDouble)
+            isDouble = true;
+          else
+            throw SyntaxError_unexpected(std::string(1, char(c)), stream.charIndex(), stream.lineNumber(), true);
         }
-      } while (get_char_type(c) == char_type::alpha || get_char_type(c) == char_type::numeric || (is_number && c == '.'));
+      } while (getCharType(c) == CharType::ALPHA || getCharType(c) == CharType::NUMERIC || (isNumber && c == '.'));
 
-      stream.push_back(c);
+      stream.pushBack(c);
 
-      if (std::optional<reserved_token> t = get_keyword(word)) {
-        if (*t == reserved_token::kw_elif) {
-          // A little hacky, interprets as 'else' and artificially adds 'if' to the stream to be the next token
-          stream.push_back('f');
-          stream.push_back('i');
-          return token(reserved_token::kw_else, line_number, char_index);
+      if (std::optional<ReservedToken> t = getKeyword(word)) {
+        if (*t == ReservedToken::KW_ELIF) {
+          // A little hacky, interprets 'elif' as 'else' and artificially adds 'if' to the stream to be the next token
+          stream.pushBack('f');
+          stream.pushBack('i');
+          return Token(ReservedToken::KW_ELSE, lineNumber, charIndex);
         }
-        return token(*t, line_number, char_index);
-      } else if (is_double) {
-        char* endptr;
-        double raw_num = strtod(word.c_str(), &endptr);
-        if (*endptr) {
-          if (*endptr == 'F' || *endptr == 'f') {
-            float num = raw_num;
-            return token(num, line_number, char_index);
+        return Token(*t, lineNumber, charIndex);
+      } else if (isDouble) {
+        char* endPtr;
+        double rawNum = strtod(word.c_str(), &endPtr);
+        if (*endPtr) {
+          if (*endPtr == 'F' || *endPtr == 'f') {
+            float num = rawNum;
+            return Token(num, lineNumber, charIndex);
           } else {
-            size_t remaining = word.length() - (endptr - word.c_str());
-            throw unexpected_error(std::string(1, char(*endptr)), stream.line_number(), stream.char_index() - remaining, false);
+            // Pointer arithmetic...
+            size_t remaining = word.length() - (endPtr - word.c_str());
+            throw SyntaxError_unexpected(std::string(1, char(*endPtr)), stream.lineNumber(), stream.charIndex() - remaining, false);
           }
         }
-        return token(raw_num, line_number, char_index);
-      } else if (is_number) {
-        char* endptr;
-        long int raw_num = strtol(word.c_str(), &endptr, 10);
-        if (*endptr) {
-          if (*endptr == 'B' || *endptr == 'b') {
-            if (raw_num >= INT8_MIN && raw_num <= INT8_MAX) {
-              int8_t num = raw_num;
-              return token(num, line_number, char_index);
+        return Token(rawNum, lineNumber, charIndex);
+      } else if (isNumber) {
+        char* endPtr;
+        long int rawNum = strtol(word.c_str(), &endPtr, 10);
+        if (*endPtr) {
+          if (*endPtr == 'B' || *endPtr == 'b') {
+            if (rawNum >= INT8_MIN && rawNum <= INT8_MAX) {
+              int8_t num = rawNum;
+              return Token(num, lineNumber, charIndex);
             } else {
-              throw syntax_error("integer value out of range for type 'byte' (-2^7 to 2^7-1).", line_number, char_index, word.length());
+              throw SyntaxError("integer value out of range for type 'byte' (-2^7 to 2^7-1).", lineNumber, charIndex, word.length());
             }
-          } else if (*endptr == 'S' || *endptr == 's') {
-            if (raw_num >= INT16_MIN && raw_num <= INT16_MAX) {
-              int16_t num = raw_num;
-              return token(num, line_number, char_index);
+          } else if (*endPtr == 'S' || *endPtr == 's') {
+            if (rawNum >= INT16_MIN && rawNum <= INT16_MAX) {
+              int16_t num = rawNum;
+              return Token(num, lineNumber, charIndex);
             } else {
-              throw syntax_error("integer value too large for type 'short' (-2^15 to 2^15-1).", line_number, char_index, word.length());
+              throw SyntaxError("integer value too large for type 'short' (-2^15 to 2^15-1).", lineNumber, charIndex, word.length());
             }
-          } else if (*endptr == 'L' || *endptr == 'l') {
-            if (raw_num >= INT64_MIN && raw_num <= INT64_MAX) {
-              int64_t num = raw_num;
-              return token(num, line_number, char_index);
+          } else if (*endPtr == 'L' || *endPtr == 'l') {
+            if (rawNum >= INT64_MIN && rawNum <= INT64_MAX) {
+              int64_t num = rawNum;
+              return Token(num, lineNumber, charIndex);
             } else {
-              throw syntax_error("integer value too large for type 'long' (-2^63 to 2^63-1).", line_number, char_index, word.length());
+              throw SyntaxError("integer value too large for type 'long' (-2^63 to 2^63-1).", lineNumber, charIndex, word.length());
             }
-          } else if (*endptr != 'I' && *endptr != 'i') {
-            size_t remaining = word.length() - (endptr - word.c_str());
-            throw unexpected_error(std::string(1, char(*endptr)), stream.line_number(), stream.char_index() - remaining, word.length());
+          } else if (*endPtr != 'I' && *endPtr != 'i') {
+            size_t remaining = word.length() - (endPtr - word.c_str());
+            throw SyntaxError_unexpected(std::string(1, char(*endPtr)), stream.lineNumber(), stream.charIndex() - remaining, word.length());
           }
         }
-        if (raw_num >= INT32_MIN && raw_num <= INT32_MAX) {
-          int32_t num = raw_num;
-          return token(num, line_number, char_index);
+        if (rawNum >= INT32_MIN && rawNum <= INT32_MAX) {
+          int32_t num = rawNum;
+          return Token(num, lineNumber, charIndex);
         } else {
-          throw syntax_error("integer value too large for type 'int' (-2^31 to 2^31-1).", line_number, char_index, word.length());
+          throw SyntaxError("integer value too large for type 'int' (-2^31 to 2^31-1).", lineNumber, charIndex, word.length());
         }
       } else {
-        return token(identifier{std::move(word)}, line_number, char_index);
+        return Token(Identifier{std::move(word)}, lineNumber, charIndex);
       }
     }
 
-    token fetch_operator(push_back_stream& stream) {
-      size_t line_number = stream.line_number();
-      size_t char_index = stream.char_index();
+    Token fetchOperator(PushBackStream& stream) {
+      size_t lineNumber = stream.lineNumber();
+      size_t charIndex = stream.charIndex();
 
-      if (std::optional<reserved_token> t = get_operator(stream)) {
-        return token(*t, line_number, char_index);
+      if (std::optional<ReservedToken> t = getOperator(stream)) {
+        return Token(*t, lineNumber, charIndex);
       } else {
         std::string unexpected;
-        size_t err_line_number = stream.line_number();
-        size_t err_char_index = stream.char_index();
-        for (int c = stream(); get_char_type(c) == char_type::other; c = stream()) {
+        size_t err_lineNumber = stream.lineNumber();
+        size_t err_charIndex = stream.charIndex();
+        for (int c = stream(); getCharType(c) == CharType::OTHER; c = stream()) {
           unexpected.push_back(char(c));
         }
-        throw unexpected_error(unexpected, err_line_number, err_char_index, false);
+        throw SyntaxError_unexpected(unexpected, err_lineNumber, err_charIndex, false);
       }
     }
 
-    token fetch_str(push_back_stream& stream) {
-      size_t line_number = stream.line_number();
-      size_t char_index = stream.char_index();
+    Token fetchString(PushBackStream& stream) {
+      size_t lineNumber = stream.lineNumber();
+      size_t charIndex = stream.charIndex();
 
       std::string str;
       bool escaped = false;
       int c = stream();
-      for (; get_char_type(c) != char_type::eof; c = stream()) {
+      for (; getCharType(c) != CharType::END; c = stream()) {
         if (c == '\\' && !escaped) {
           escaped = true;
         } else if (escaped) {
@@ -171,33 +167,32 @@ namespace valley {
             case '\t':
             case '\n':
             case '\r':
-              stream.push_back(c);
-              throw syntax_error("string was never closed.", line_number, char_index - 1, stream.char_index() - char_index);
+              stream.pushBack(c);
+              throw SyntaxError("could not find a matching '\"'.", lineNumber, charIndex - 1, stream.charIndex() - charIndex);
             case '"':
-              return token(std::move(str), line_number, char_index);
+              return Token(std::move(str), lineNumber, charIndex);
             default:
               str.push_back(c);
           }
         }
       }
-      stream.push_back(c);
-      throw syntax_error("string was never closed.", line_number, char_index - 1, stream.char_index() - char_index);
+      stream.pushBack(c);
+      throw SyntaxError("could not find a matching '\"'.", lineNumber, charIndex - 1, stream.charIndex() - charIndex);
     }
 
-    void skip_line_comment(push_back_stream& stream) {
+    void skipLineComment(PushBackStream& stream) {
       int c;
       do {
         c = stream();
-      } while (c != '\n' && get_char_type(c) != char_type::eof);
-
+      } while (c != '\n' && getCharType(c) != CharType::END);
       if (c != '\n') {
-        stream.push_back(c);
+        stream.pushBack(c);
       }
     }
 
-    void skip_block_comment(push_back_stream& stream) {
-      size_t line_number = stream.line_number();
-      size_t char_index = stream.char_index();
+    void skipBlockComment(PushBackStream& stream) {
+      size_t lineNumber = stream.lineNumber();
+      size_t charIndex = stream.charIndex();
 
       int c;
       bool closing = false;
@@ -207,80 +202,87 @@ namespace valley {
           return;
         }
         closing = c == '*';
-      } while (get_char_type(c) != char_type::eof);
+      } while (getCharType(c) != CharType::END);
 
-      stream.push_back(c);
-      throw syntax_error("block comment was never closed.", line_number, char_index - 1, 2);
+      stream.pushBack(c);
+      throw SyntaxError("could not find a matching '*/'.", lineNumber, charIndex - 1, 2);
     }
 
-    token tokenize(push_back_stream& stream) {
+    Token tokenize(PushBackStream& stream) {
       while (true) {
-        size_t line_number = stream.line_number();
-        size_t char_index = stream.char_index();
+        size_t lineNumber = stream.lineNumber();
+        size_t charIndex = stream.charIndex();
         int c = stream();
-        switch (get_char_type(c)) {
-          case char_type::eof:
-            return {eof(), line_number, char_index};
-          case char_type::whitespace:
+        switch (getCharType(c)) {
+          case CharType::END:
+            return {Eof(), lineNumber, charIndex};
+
+          case CharType::WHITESPACE:
             continue;
-          case char_type::alpha:
-          case char_type::numeric:
-            stream.push_back(c);
-            return fetch_word(stream);
-          case char_type::other:
+            
+          case CharType::ALPHA:
+          case CharType::NUMERIC:
+            stream.pushBack(c);
+            return fetchWord(stream);
+
+          case CharType::OTHER:
             switch (c) {
               case '"':
-                return fetch_str(stream);
+                return fetchString(stream);
               case '/': {
                 char c1 = stream();
                 switch (c1) {
                   case '/':
-                    skip_line_comment(stream);
+                    skipLineComment(stream);
                     continue;
                   case '*':
-                    skip_block_comment(stream);
+                    skipBlockComment(stream);
                     continue;
                   default:
-                    stream.push_back(c1);
+                    stream.pushBack(c1);
                 }
               }
               default:
-                stream.push_back(c);
-                return fetch_operator(stream);
+                stream.pushBack(c);
+                return fetchOperator(stream);
             }
             break;
         }
       }
     }
+    
   }
 
-  tokens_iterator::tokens_iterator(push_back_stream& stream):
-  _stream(stream), _current(eof(), 0, 0) {
+  TokenIterator::TokenIterator(PushBackStream& stream):
+    _stream(stream),
+    _current(Eof(), 0, 0)
+  {
     ++(*this);
   }
 
-  tokens_iterator& tokens_iterator::operator++() {
+  TokenIterator& TokenIterator::operator++() {
     _current = tokenize(_stream);
     return *this;
   }
 
-  const token& tokens_iterator::operator*() const {
+  const Token& TokenIterator::operator*() const {
     return _current;
   }
 
-  const token* tokens_iterator::operator->() const {
+  const Token* TokenIterator::operator->() const {
     return &_current;
   }
 
-  tokens_iterator::operator bool() const {
-    return !_current.is_eof();
+  TokenIterator::operator bool() const {
+    return !_current.isEof();
   }
 
-  void tokens_iterator::move_back(token t) {
-    std::string current = std::to_string(_current);
+  void TokenIterator::stepBack(Token t) {
+    std::string current = _current.toString();
     for (int i = current.size() - 1; i >= 0; i--) {
-      _stream.push_back(current.at(i));
+      _stream.pushBack(current.at(i));
     }
     _current = t;
   }
+
 }

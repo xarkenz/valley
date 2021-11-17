@@ -1,546 +1,595 @@
 #include "statement.hpp"
 
-#include <iostream>
-
 #include "errors.hpp"
 
-namespace valley {
-  // --- statement ---
 
-  statement::statement(statement::ptr parent, size_t line_number, size_t char_index):
-  _parent(parent), _line_number(line_number), _char_index(char_index) {
+namespace valley {
+
+  // --- Statement ---
+
+  Statement::Statement(Statement::Ptr parent, size_t lineNumber, size_t charIndex):
+    _parent(parent),
+    _line_number(lineNumber),
+    _char_index(charIndex)
+  {
   }
 
-  std::weak_ptr<const statement> statement::get_parent() const {
+  std::weak_ptr<const Statement> Statement::parent() const {
     return _parent;
   }
 
-  size_t statement::get_line_number() const {
+  size_t Statement::lineNumber() const {
     return _line_number;
   }
 
-  size_t statement::get_char_index() const {
+  size_t Statement::charIndex() const {
     return _char_index;
   }
 
-  void statement::set_parent(statement::ptr parent) const {
+  void Statement::setParent(Statement::Ptr parent) const {
     _parent = parent;
   }
 
-  bool statement::execute(runtime_context& context) const {
+  /*bool Statement::execute(RuntimeContext& context) const {
     // Proceed normally by default
     return true;
   }
 
-  void statement::do_return(runtime_context& context) const {
-    if (statement::ptr parent = _parent.lock())
-      parent->do_return(context);
+  void Statement::doReturn(RuntimeContext& context) const {
+    if (Statement::Ptr parent = _parent.lock())
+      parent->doReturn(context);
     else
-      throw runtime_error("'return' called outside function definition.", _line_number, _char_index);
+      throw RuntimeError("'return' called outside function definition.", _line_number, _char_index);
   }
 
-  void statement::do_break(runtime_context& context) const {
-    if (statement::ptr parent = _parent.lock())
-      parent->do_break(context);
+  void Statement::doBreak(RuntimeContext& context) const {
+    if (Statement::Ptr parent = _parent.lock())
+      parent->doBreak(context);
     else
-      throw runtime_error("'break' called outside loop or switch.", _line_number, _char_index);
+      throw RuntimeError("'break' called outside loop or switch.", _line_number, _char_index);
   }
 
-  void statement::do_continue(runtime_context& context) const {
-    if (statement::ptr parent = _parent.lock())
-      parent->do_continue(context);
+  void Statement::doContinue(RuntimeContext& context) const {
+    if (Statement::Ptr parent = _parent.lock())
+      parent->doContinue(context);
     else
-      throw runtime_error("'continue' called outside loop or switch.", _line_number, _char_index);
+      throw RuntimeError("'continue' called outside loop or switch.", _line_number, _char_index);
+  }*/
+
+  // --- StatementEmpty ---
+
+  StatementEmpty::StatementEmpty(Statement::Ptr parent, size_t lineNumber, size_t charIndex):
+    Statement(parent, lineNumber, charIndex)
+  {
   }
 
-  // --- statement_empty ---
-
-  statement_empty::statement_empty(statement::ptr parent, size_t line_number, size_t char_index):
-  statement(parent, line_number, char_index) {
+  const StatementType StatementEmpty::type() const {
+    return StatementType::EMPTY;
   }
 
-  const statement_type statement_empty::get_stmt_type() const {
-    return statement_type::empty_s;
-  }
-
-  std::string statement_empty::to_string() const {
+  std::string StatementEmpty::toString() const {
     return "<EMPTY>";
   }
 
-  // --- statement_expr ---
+  // --- StatementExpr ---
 
-  statement_expr::statement_expr(statement::ptr parent, node_ptr& root, size_t line_number, size_t char_index):
-  _root(std::move(root)), statement(parent, line_number, char_index) {
+  StatementExpr::StatementExpr(Statement::Ptr parent, Expression::Ptr& root, size_t lineNumber, size_t charIndex):
+    _root(std::move(root)),
+    Statement(parent, lineNumber, charIndex)
+  {
   }
 
-  const statement_type statement_expr::get_stmt_type() const {
-    return statement_type::expr_s;
+  const StatementType StatementExpr::type() const {
+    return StatementType::EXPR;
   }
 
-  const node_ptr& statement_expr::get_root() const {
+  const Expression::Ptr& StatementExpr::root() const {
     return _root;
   }
 
-  bool statement_expr::execute(runtime_context& context) const {
+  /*bool StatementExpr::execute(RuntimeContext& context) const {
     return true;
-  }
+  }*/
 
-  std::string statement_expr::to_string() const {
+  std::string StatementExpr::toString() const {
     if (!_root)
       return "(deallocated)";
-    return "<EXPR [" + std::to_string(_root) + "]>";
+    return "<EXPR [" + expressionRepr(_root) + "]>";
   }
 
-  // --- statement_block ---
+  // --- StatementBlock ---
 
-  statement_block::statement_block(statement::ptr parent, std::vector<statement::ptr> contents, size_t line_number, size_t char_index):
-  _contents(std::move(contents)), statement(parent, line_number, char_index) {
+  StatementBlock::StatementBlock(Statement::Ptr parent, std::vector<Statement::Ptr> contents, size_t lineNumber, size_t charIndex):
+    _contents(std::move(contents)),
+    Statement(parent, lineNumber, charIndex)
+  {
   }
 
-  const statement_type statement_block::get_stmt_type() const {
-    return statement_type::block_s;
+  const StatementType StatementBlock::type() const {
+    return StatementType::BLOCK;
   }
 
-  std::vector<statement::ptr>& statement_block::get_contents() {
+  std::vector<Statement::Ptr>& StatementBlock::contents() {
     return _contents;
   }
 
-  bool statement_block::execute(runtime_context& context) const {
-    for (statement::ptr stmt : _contents) {
+  /*bool StatementBlock::execute(RuntimeContext& context) const {
+    for (Statement::Ptr stmt : _contents) {
       if (stmt && !stmt->execute(context))
         return false;
     }
     return true;
-  }
+  }*/
 
-  std::string statement_block::to_string() const {
+  std::string StatementBlock::toString() const {
     std::string str = "<BLOCK ";
     std::string delimiter = "";
     if (_contents.empty())
       str += "(empty)";
-    for (statement::ptr stmt : _contents) {
+    for (Statement::Ptr stmt : _contents) {
       if (stmt) {
-        str += delimiter + stmt->to_string();
+        str += delimiter + stmt->toString();
         delimiter = ", ";
       }
     }
     return str + ">";
   }
 
-  // --- statement_declare ---
+  // --- StatementDeclare ---
   
-  statement_declare::statement_declare(statement::ptr parent, const identifier_info* id_info, const std::string& id_name, statement::ptr value, size_t line_number, size_t char_index):
-  _id_info(*id_info), _id_name(id_name), _value(value), statement(parent, line_number, char_index) {
+  StatementDeclare::StatementDeclare(Statement::Ptr parent, const IdentifierInfo* info, const std::string& name, Statement::Ptr value, size_t lineNumber, size_t charIndex):
+    _info(*info),
+    _name(name),
+    _value(value),
+    Statement(parent, lineNumber, charIndex)
+  {
   }
 
-  const statement_type statement_declare::get_stmt_type() const {
-    return statement_type::declare_s;
+  const StatementType StatementDeclare::type() const {
+    return StatementType::DECLARE;
   }
 
-  const identifier_info* statement_declare::get_id_info() const {
-    return &_id_info;
+  const IdentifierInfo* StatementDeclare::info() const {
+    return &_info;
   }
 
-  const std::string& statement_declare::get_id_name() const {
-    return _id_name;
+  const std::string& StatementDeclare::name() const {
+    return _name;
   }
 
-  statement::ptr statement_declare::get_value() const {
+  Statement::Ptr StatementDeclare::value() const {
     return _value;
   }
 
-  bool statement_declare::execute(runtime_context& context) const {
+  /*bool StatementDeclare::execute(RuntimeContext& context) const {
     return true;
-  }
+  }*/
 
-  std::string statement_declare::to_string() const {
+  std::string StatementDeclare::toString() const {
     std::string str = "<DECLARE ";
-    if (_id_info.is_final())
+    if (_info.isFinal())
       str += "final ";
-    if (_id_info.is_static())
+    if (_info.isStatic())
       str += "static ";
-    str += std::to_string(_id_info.type_id()) + " ";
-    str += _id_name;
+    str += typeHandleRepr(_info.type()) + " ";
+    str += _name;
     if (_value)
-      str += " = " + _value->to_string();
+      str += " = " + _value->toString();
     return str + ">";
   }
 
-  // --- statement_decfunc ---
+  // --- StatementDecfunc ---
   
-  statement_decfunc::statement_decfunc(statement::ptr parent, const identifier_info* id_info, const std::string& id_name, std::vector<identifier_info> param_infos, std::vector<std::string> param_names, statement::ptr exec, size_t line_number, size_t char_index):
-      _id_info(*id_info), _id_name(id_name), _param_infos(std::move(param_infos)), _param_names(std::move(param_names)), _exec(exec), statement(parent, line_number, char_index) {
+  StatementDecfunc::StatementDecfunc(Statement::Ptr parent, const IdentifierInfo* info, const std::string& name, std::vector<IdentifierInfo> paramInfos, std::vector<std::string> paramNames, Statement::Ptr exec, size_t lineNumber, size_t charIndex):
+    _info(*info),
+    _name(name),
+    _param_infos(std::move(paramInfos)),
+    _param_names(std::move(paramNames)),
+    _exec(exec),
+    Statement(parent, lineNumber, charIndex)
+  {
   }
 
-  const statement_type statement_decfunc::get_stmt_type() const {
-    return statement_type::decfunc_s;
+  const StatementType StatementDecfunc::type() const {
+    return StatementType::DECFUNC;
   }
 
-  const identifier_info* statement_decfunc::get_id_info() const {
-    return &_id_info;
+  const IdentifierInfo* StatementDecfunc::info() const {
+    return &_info;
   }
 
-  const std::string& statement_decfunc::get_id_name() const {
-    return _id_name;
+  const std::string& StatementDecfunc::name() const {
+    return _name;
   }
 
-  const std::vector<identifier_info>& statement_decfunc::get_param_infos() const {
+  const std::vector<IdentifierInfo>& StatementDecfunc::paramInfos() const {
     return _param_infos;
   }
 
-  const std::vector<std::string>& statement_decfunc::get_param_names() const {
+  const std::vector<std::string>& StatementDecfunc::paramNames() const {
     return _param_names;
   }
 
-  statement::ptr statement_decfunc::get_exec() const {
+  Statement::Ptr StatementDecfunc::exec() const {
     return _exec;
   }
 
-  bool statement_decfunc::execute(runtime_context& context) const {
+  /*bool StatementDecfunc::execute(RuntimeContext& context) const {
     return true;
   }
 
-  void statement_decfunc::do_return(runtime_context& context) const {
-  }
+  void StatementDecfunc::doReturn(RuntimeContext& context) const {
+  }*/
 
-  std::string statement_decfunc::to_string() const {
+  std::string StatementDecfunc::toString() const {
     std::string str = "<FUNCTION ";
-    if (_id_info.is_final())
+    if (_info.isFinal())
       str += "final ";
-    if (_id_info.is_static())
+    if (_info.isStatic())
       str += "static ";
-    str += std::to_string(_id_info.type_id()) + " ";
-    str += _id_name + "(";
-    bool do_comma = false;
+    str += typeHandleRepr(_info.type()) + " ";
+    str += _name + "(";
+    bool doComma = false;
     for (size_t i = 0; i < _param_infos.size(); ++i) {
-      str += (do_comma ? ", " : "") + std::to_string(_param_infos.at(i).type_id()) + " " + _param_names.at(i);
-      do_comma = true;
+      str += (doComma ? ", " : "") + typeHandleRepr(_param_infos.at(i).type()) + " " + _param_names.at(i);
+      doComma = true;
     }
-    str += ") DOES " + _exec->to_string();
+    str += ") DOES " + _exec->toString();
     return str + ">";
   }
 
-  // --- statement_return ---
+  // --- StatementReturn ---
 
-  statement_return::statement_return(statement::ptr parent, statement::ptr value, size_t line_number, size_t char_index):
-  _value(value), statement(parent, line_number, char_index) {
+  StatementReturn::StatementReturn(Statement::Ptr parent, Statement::Ptr value, size_t lineNumber, size_t charIndex):
+    _value(value),
+    Statement(parent, lineNumber, charIndex)
+  {
   }
 
-  const statement_type statement_return::get_stmt_type() const {
-    return statement_type::return_s;
+  const StatementType StatementReturn::type() const {
+    return StatementType::RETURN;
   }
 
-  statement::ptr statement_return::get_value() const {
+  Statement::Ptr StatementReturn::value() const {
     return _value;
   }
 
-  bool statement_return::execute(runtime_context& context) const {
+  /*bool StatementReturn::execute(RuntimeContext& context) const {
     return true;
-  }
+  }*/
 
-  std::string statement_return::to_string() const {
+  std::string StatementReturn::toString() const {
     if (_value)
-      return "<RETURN " + _value->to_string() + ">";
-    else
-      return "<RETURN>";
+      return "<RETURN " + _value->toString() + ">";
+    return "<RETURN>";
   }
 
-  // --- statement_break ---
+  // --- StatementBreak ---
 
-  statement_break::statement_break(statement::ptr parent, size_t line_number, size_t char_index):
-  statement(parent, line_number, char_index) {
+  StatementBreak::StatementBreak(Statement::Ptr parent, size_t lineNumber, size_t charIndex):
+    Statement(parent, lineNumber, charIndex)
+  {
   }
 
-  const statement_type statement_break::get_stmt_type() const {
-    return statement_type::break_s;
+  const StatementType StatementBreak::type() const {
+    return StatementType::BREAK;
   }
 
-  bool statement_break::execute(runtime_context& context) const {
+  /*bool StatementBreak::execute(RuntimeContext& context) const {
     return true;
-  }
+  }*/
 
-  std::string statement_break::to_string() const {
+  std::string StatementBreak::toString() const {
     return "<BREAK>";
   }
 
-  // --- statement_continue ---
+  // --- StatementContinue ---
 
-  statement_continue::statement_continue(statement::ptr parent, size_t line_number, size_t char_index):
-  statement(parent, line_number, char_index) {
+  StatementContinue::StatementContinue(Statement::Ptr parent, size_t lineNumber, size_t charIndex):
+    Statement(parent, lineNumber, charIndex)
+  {
   }
 
-  const statement_type statement_continue::get_stmt_type() const {
-    return statement_type::continue_s;
+  const StatementType StatementContinue::type() const {
+    return StatementType::CONTINUE;
   }
 
-  bool statement_continue::execute(runtime_context& context) const {
+  /*bool StatementContinue::execute(RuntimeContext& context) const {
     return true;
-  }
+  }*/
 
-  std::string statement_continue::to_string() const {
+  std::string StatementContinue::toString() const {
     return "<CONTINUE>";
   }
 
-  // --- statement_if_else ---
+  // --- StatementIfElse ---
 
-  statement_if_else::statement_if_else(statement::ptr parent, statement::ptr condition, statement::ptr do_if, statement::ptr do_else, size_t line_number, size_t char_index):
-  _condition(condition), _do_if(do_if), _do_else(do_else), statement(parent, line_number, char_index) {
+  StatementIfElse::StatementIfElse(Statement::Ptr parent, Statement::Ptr condition, Statement::Ptr doIf, Statement::Ptr doElse, size_t lineNumber, size_t charIndex):
+    _condition(condition),
+    _do_if(doIf),
+    _do_else(doElse),
+    Statement(parent, lineNumber, charIndex)
+  {
   }
 
-  const statement_type statement_if_else::get_stmt_type() const {
-    return statement_type::ifelse_s;
+  const StatementType StatementIfElse::type() const {
+    return StatementType::IF_ELSE;
   }
 
-  statement::ptr statement_if_else::get_condition() const {
+  Statement::Ptr StatementIfElse::condition() const {
     return _condition;
   }
 
-  statement::ptr statement_if_else::get_do_if() const {
+  Statement::Ptr StatementIfElse::doIf() const {
     return _do_if;
   }
 
-  statement::ptr statement_if_else::get_do_else() const {
+  Statement::Ptr StatementIfElse::doElse() const {
     return _do_else;
   }
 
-  bool statement_if_else::execute(runtime_context& context) const {
+  /*bool StatementIfElse::execute(RuntimeContext& context) const {
     return true;
-  }
+  }*/
 
-  std::string statement_if_else::to_string() const {
+  std::string StatementIfElse::toString() const {
     if (!_condition || !_do_if)
       return "";
-    std::string str = "<IF " + _condition->to_string() + " THEN " + _do_if->to_string();
+    std::string str = "<IF " + _condition->toString() + " THEN " + _do_if->toString();
     if (_do_else)
-      str += " ELSE " + _do_else->to_string();
+      str += " ELSE " + _do_else->toString();
     return str + ">";
   }
 
-  // --- statement_while ---
+  // --- StatementWhile ---
 
-  statement_while::statement_while(statement::ptr parent, statement::ptr condition, statement::ptr looped, size_t line_number, size_t char_index):
-  _condition(condition), _looped(looped), statement(parent, line_number, char_index) {
+  StatementWhile::StatementWhile(Statement::Ptr parent, Statement::Ptr condition, Statement::Ptr looped, size_t lineNumber, size_t charIndex):
+    _condition(condition),
+    _looped(looped),
+    Statement(parent, lineNumber, charIndex)
+  {
   }
 
-  const statement_type statement_while::get_stmt_type() const {
-    return statement_type::while_s;
+  const StatementType StatementWhile::type() const {
+    return StatementType::WHILE;
   }
 
-  statement::ptr statement_while::get_condition() const {
+  Statement::Ptr StatementWhile::condition() const {
     return _condition;
   }
 
-  statement::ptr statement_while::get_looped() const {
+  Statement::Ptr StatementWhile::looped() const {
     return _looped;
   }
 
-  bool statement_while::execute(runtime_context& context) const {
+  /*bool StatementWhile::execute(RuntimeContext& context) const {
     return true;
   }
 
-  void statement_while::do_break(runtime_context& context) const {
+  void StatementWhile::doBreak(RuntimeContext& context) const {
   }
 
-  void statement_while::do_continue(runtime_context& context) const {
-  }
+  void StatementWhile::doContinue(RuntimeContext& context) const {
+  }*/
 
-  std::string statement_while::to_string() const {
+  std::string StatementWhile::toString() const {
     if (!_condition || !_looped)
       return "";
-    return "<WHILE " + _condition->to_string() + " DO " + _looped->to_string() + ">";
+    return "<WHILE " + _condition->toString() + " DO " + _looped->toString() + ">";
   }
 
-  // --- statement_do_while ---
+  // --- StatementDoWhile ---
 
-  statement_do_while::statement_do_while(statement::ptr parent, statement::ptr condition, statement::ptr looped, size_t line_number, size_t char_index): statement_while(parent, condition, looped, line_number, char_index) {
+  StatementDoWhile::StatementDoWhile(Statement::Ptr parent, Statement::Ptr condition, Statement::Ptr looped, size_t lineNumber, size_t charIndex):
+    StatementWhile(parent, condition, looped, lineNumber, charIndex)
+  {
   }
 
-  const statement_type statement_do_while::get_stmt_type() const {
-    return statement_type::dowhile_s;
+  const StatementType StatementDoWhile::type() const {
+    return StatementType::DO_WHILE;
   }
 
-  bool statement_do_while::execute(runtime_context& context) const {
+  /*bool StatementDoWhile::execute(RuntimeContext& context) const {
     return true;
   }
 
-  void statement_do_while::do_break(runtime_context& context) const {
+  void StatementDoWhile::doBreak(RuntimeContext& context) const {
   }
 
-  void statement_do_while::do_continue(runtime_context& context) const {
-  }
+  void StatementDoWhile::doContinue(RuntimeContext& context) const {
+  }*/
 
-  std::string statement_do_while::to_string() const {
+  std::string StatementDoWhile::toString() const {
     if (!_looped || !_condition)
       return "";
-    return "<DO " + _looped->to_string() + " WHILE " + _condition->to_string() + ">";
+    return "<DO " + _looped->toString() + " WHILE " + _condition->toString() + ">";
   }
 
-  // --- statement_for ---
+  // --- StatementFor ---
 
-  statement_for::statement_for(statement::ptr parent, statement::ptr first, statement::ptr condition, statement::ptr on_iter, statement::ptr looped, size_t line_number, size_t char_index):
-  _first(first), _condition(condition), _on_iter(on_iter), _looped(looped), statement(parent, line_number, char_index) {
+  StatementFor::StatementFor(Statement::Ptr parent, Statement::Ptr first, Statement::Ptr condition, Statement::Ptr onIter, Statement::Ptr looped, size_t lineNumber, size_t charIndex):
+    _first(first),
+    _condition(condition),
+    _on_iter(onIter),
+    _looped(looped),
+    Statement(parent, lineNumber, charIndex)
+  {
   }
 
-  const statement_type statement_for::get_stmt_type() const {
-    return statement_type::for_s;
+  const StatementType StatementFor::type() const {
+    return StatementType::FOR;
   }
 
-  statement::ptr statement_for::get_first() const {
+  Statement::Ptr StatementFor::first() const {
     return _first;
   }
 
-  statement::ptr statement_for::get_condition() const {
+  Statement::Ptr StatementFor::condition() const {
     return _condition;
   }
 
-  statement::ptr statement_for::get_on_iter() const {
+  Statement::Ptr StatementFor::onIter() const {
     return _on_iter;
   }
 
-  statement::ptr statement_for::get_looped() const {
+  Statement::Ptr StatementFor::looped() const {
     return _looped;
   }
 
-  bool statement_for::execute(runtime_context& context) const {
+  /*bool StatementFor::execute(RuntimeContext& context) const {
     return true;
   }
 
-  void statement_for::do_break(runtime_context& context) const {
+  void StatementFor::doBreak(RuntimeContext& context) const {
   }
 
-  void statement_for::do_continue(runtime_context& context) const {
-  }
+  void StatementFor::doContinue(RuntimeContext& context) const {
+  }*/
 
-  std::string statement_for::to_string() const {
+  std::string StatementFor::toString() const {
     if (!_first || !_condition || !_on_iter || !_looped)
       return "";
-    return "<FOR init" + _first->to_string() + " test" + _condition->to_string() + " update" + _on_iter->to_string() + " DO " + _looped->to_string() + ">";
+    return "<FOR init" + _first->toString() + " test" + _condition->toString() + " update" + _on_iter->toString() + " DO " + _looped->toString() + ">";
   }
 
-  // --- statement_foreach ---
+  // --- StatementForeach ---
 
-  statement_foreach::statement_foreach(statement::ptr parent, statement::ptr declared, statement::ptr iter, statement::ptr looped, size_t line_number, size_t char_index):
-  _declared(declared), _iter(iter), _looped(looped), statement(parent, line_number, char_index) {
+  StatementForeach::StatementForeach(Statement::Ptr parent, Statement::Ptr declared, Statement::Ptr iter, Statement::Ptr looped, size_t lineNumber, size_t charIndex):
+    _declared(declared),
+    _iter(iter),
+    _looped(looped),
+    Statement(parent, lineNumber, charIndex)
+  {
   }
 
-  const statement_type statement_foreach::get_stmt_type() const {
-    return statement_type::foreach_s;
+  const StatementType StatementForeach::type() const {
+    return StatementType::FOREACH;
   }
 
-  statement::ptr statement_foreach::get_declared() const {
+  Statement::Ptr StatementForeach::declared() const {
     return _declared;
   }
 
-  statement::ptr statement_foreach::get_iter() const {
+  Statement::Ptr StatementForeach::iter() const {
     return _iter;
   }
 
-  statement::ptr statement_foreach::get_looped() const {
+  Statement::Ptr StatementForeach::looped() const {
     return _looped;
   }
 
-  bool statement_foreach::execute(runtime_context& context) const {
+  /*bool StatementForeach::execute(RuntimeContext& context) const {
     return true;
   }
 
-  void statement_foreach::do_break(runtime_context& context) const {
+  void StatementForeach::doBreak(RuntimeContext& context) const {
   }
 
-  void statement_foreach::do_continue(runtime_context& context) const {
-  }
+  void StatementForeach::doContinue(RuntimeContext& context) const {
+  }*/
 
-  std::string statement_foreach::to_string() const {
+  std::string StatementForeach::toString() const {
     if (!_declared || !_iter || !_looped)
-      return "<FOR EACH (deallocated)>";
-    return "<FOR EACH item" + _declared->to_string() + " IN iter" + _iter->to_string() + " DO " + _looped->to_string() + ">";
+      return "<FOREACH (deallocated)>";
+    return "<FOREACH item" + _declared->toString() + " IN iter" + _iter->toString() + " DO " + _looped->toString() + ">";
   }
 
-  // --- statement_switch ---
+  // --- StatementSwitch ---
 
-  statement_switch::statement_switch(statement::ptr parent, statement::ptr tested, statement::ptr contents, size_t line_number, size_t char_index):
-  _tested(tested), _contents(contents), statement(parent, line_number, char_index) {
+  StatementSwitch::StatementSwitch(Statement::Ptr parent, Statement::Ptr tested, Statement::Ptr contents, size_t lineNumber, size_t charIndex):
+    _tested(tested),
+    _contents(contents),
+    Statement(parent, lineNumber, charIndex)
+  {
   }
 
-  const statement_type statement_switch::get_stmt_type() const {
-    return statement_type::switch_s;
+  const StatementType StatementSwitch::type() const {
+    return StatementType::SWITCH;
   }
 
-  statement::ptr statement_switch::get_tested() const {
+  Statement::Ptr StatementSwitch::tested() const {
     return _tested;
   }
 
-  statement::ptr statement_switch::get_contents() const {
+  Statement::Ptr StatementSwitch::contents() const {
     return _contents;
   }
 
-  bool statement_switch::execute(runtime_context& context) const {
+  /*bool StatementSwitch::execute(RuntimeContext& context) const {
     return true;
   }
 
-  void statement_switch::do_break(runtime_context& context) const {
+  void StatementSwitch::doBreak(RuntimeContext& context) const {
   }
 
-  void statement_switch::do_continue(runtime_context& context) const {
-  }
+  void StatementSwitch::doContinue(RuntimeContext& context) const {
+  }*/
 
-  std::string statement_switch::to_string() const {
+  std::string StatementSwitch::toString() const {
     return "";
   }
 
-  // --- statement_switch_case ---
+  // --- StatementSwitchCase ---
 
-  statement_switch_case::statement_switch_case(statement::ptr parent, node_ptr& test, size_t line_number, size_t char_index):
-  _test(test), statement(parent, line_number, char_index) {
+  StatementSwitchCase::StatementSwitchCase(Statement::Ptr parent, Expression::Ptr& test, size_t lineNumber, size_t charIndex):
+    _test(std::move(test)),
+    Statement(parent, lineNumber, charIndex)
+  {
   }
 
-  const statement_type statement_switch_case::get_stmt_type() const {
-    return statement_type::case_s;
+  const StatementType StatementSwitchCase::type() const {
+    return StatementType::CASE;
   }
 
-  node_ptr& statement_switch_case::get_test() const {
+  const Expression::Ptr& StatementSwitchCase::test() const {
     return _test;
   }
 
-  bool statement_switch_case::execute(runtime_context& context) const {
+  /*bool StatementSwitchCase::execute(RuntimeContext& context) const {
     return true;
-  }
+  }*/
 
-  std::string statement_switch_case::to_string() const {
+  std::string StatementSwitchCase::toString() const {
     return "";
   }
 
-  // --- statement_try_catch ---
+  // --- StatementTryCatch ---
 
-  statement_try_catch::statement_try_catch(statement::ptr parent, statement::ptr to_try, std::vector<catcher_info>& catchers, statement::ptr do_after, size_t line_number, size_t char_index):
-  _to_try(to_try), _catchers(std::move(catchers)), _do_after(do_after), statement(parent, line_number, char_index) {
+  StatementTryCatch::StatementTryCatch(Statement::Ptr parent, Statement::Ptr toTry, std::vector<ExceptionCatcherInfo>& catchers, Statement::Ptr doAfter, size_t lineNumber, size_t charIndex):
+    _to_try(toTry),
+    _catchers(std::move(catchers)),
+    _do_after(doAfter),
+    Statement(parent, lineNumber, charIndex)
+  {
   }
 
-  const statement_type statement_try_catch::get_stmt_type() const {
-    return statement_type::trycatch_s;
+  const StatementType StatementTryCatch::type() const {
+    return StatementType::TRY_CATCH;
   }
 
-  statement::ptr statement_try_catch::get_to_try() const {
+  Statement::Ptr StatementTryCatch::toTry() const {
     return _to_try;
   }
 
-  const catcher_info* statement_try_catch::find_catcher(type_handle except_type) const {
-    for (const catcher_info& catcher : _catchers) {
-      if (catcher.except_type == except_type) {
+  const ExceptionCatcherInfo* StatementTryCatch::findCatcher(TypeHandle exceptType) const {
+    for (const ExceptionCatcherInfo& catcher : _catchers) {
+      if (catcher.type == exceptType) {
         return &catcher;
       }
     }
     return nullptr;
   }
 
-  statement::ptr statement_try_catch::get_do_after() const {
+  Statement::Ptr StatementTryCatch::doAfter() const {
     return _do_after;
   }
 
-  bool statement_try_catch::execute(runtime_context& context) const {
+  /*bool StatementTryCatch::execute(RuntimeContext& context) const {
     return true;
-  }
+  }*/
 
-  std::string statement_try_catch::to_string() const {
+  std::string StatementTryCatch::toString() const {
     return "";
   }
+
 }

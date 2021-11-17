@@ -1,119 +1,108 @@
-#ifndef TYPES_HPP
-#define TYPES_HPP
+#pragma once
 
-#include <ostream>
 #include <set>
 #include <variant>
 #include <vector>
 
+
 namespace valley {
-  enum struct primitive {
-    void_type,
-    byte_type,
-    short_type,
-    int_type,
-    long_type,
-    float_type,
-    double_type,
-    bool_type,
-    char_type,
-    str_type,
+
+  // Type index 0 (fundamental built-in types)
+  enum struct PrimitiveType {
+    VOID,
+    BYTE,
+    SHORT,
+    INT,
+    LONG,
+    FLOAT,
+    DOUBLE,
+    BOOL,
+    CHAR,
+    STR,
   };
 
-  struct any_type;
-  struct array_type;
-  struct function_type;
+  struct ArrayType;
+  struct FuncType;
+  struct AnyType;
+  struct ClassType;
+  struct ObjectType;
 
-  using type = std::variant<primitive, any_type, array_type, function_type>;
-  using type_handle = const type*;
+  using Type = std::variant<PrimitiveType, ArrayType, FuncType, AnyType, ClassType, ObjectType>;
+  // Allows objects to hold globally constant types
+  using TypeHandle = const Type*;
 
-  struct any_type {
-    type_handle current;
+  // Type index 1 (arrays of a certain type)
+  struct ArrayType {
+    TypeHandle inner;
   };
 
-  struct array_type {
-    type_handle inner;
+  // Type index 2 (defined function with parameters and return)
+  struct FuncType {
+    TypeHandle returnType;
+    std::vector<TypeHandle> paramTypes;
+    bool hasArgCatch; // true if last parameter has '...'
   };
 
-  struct function_type {
-    type_handle returning;
-    std::vector<type_handle> params;
-    bool has_varargs;
+  // Type index 3 (dynamic type; active type is nullptr if n/a, e.g. any[])
+  struct AnyType {
+    TypeHandle active;
   };
 
-  class type_registry {
-    private:
-      struct types_less {
-        bool operator()(const type& t1, const type& t2) const;
-      };
-
-      std::set<type, types_less> _types;
-
-      static type void_type;
-      static type byte_type;
-      static type short_type;
-      static type int_type;
-      static type long_type;
-      static type float_type;
-      static type double_type;
-      static type bool_type;
-      static type char_type;
-      static type str_type;
-      static type any_type_dummy;
-    
-    public:
-      type_registry();
-
-      type_handle get_handle(const type& t);
-
-      static type_handle any_handle() {
-        return &any_type_dummy;
-      }
-
-      static type_handle void_handle() {
-        return &void_type;
-      }
-
-      static type_handle byte_handle() {
-        return &byte_type;
-      }
-
-      static type_handle short_handle() {
-        return &short_type;
-      }
-
-      static type_handle int_handle() {
-        return &int_type;
-      }
-
-      static type_handle long_handle() {
-        return &long_type;
-      }
-
-      static type_handle float_handle() {
-        return &float_type;
-      }
-
-      static type_handle double_handle() {
-        return &double_type;
-      }
-
-      static type_handle bool_handle() {
-        return &bool_type;
-      }
-
-      static type_handle char_handle() {
-        return &char_type;
-      }
-
-      static type_handle str_handle() {
-        return &str_type;
-      }
+  // Type index 4 (user-defined classes; name is constant and unique)
+  struct ClassType {
+    std::string className;
+    // Same as method resolution order, useful when checking implicit conversion and matching function calls to signatures
+    std::vector<const ClassType*> inheritance;
   };
+
+  // Type index 5 (instances of user-defined classes)
+  struct ObjectType {
+    const ClassType* classType;
+  };
+
+  class TypeRegistry {
+  private:
+    // Compares types in the register
+    struct TypeComparator {
+      bool operator()(const Type& t1, const Type& t2) const;
+    };
+
+    // Internal register
+    std::set<Type, TypeComparator> _register;
+
+    // Static types to hold the basic registry types
+    static Type _void_ref;
+    static Type _byte_ref;
+    static Type _short_ref;
+    static Type _int_ref;
+    static Type _long_ref;
+    static Type _float_ref;
+    static Type _double_ref;
+    static Type _bool_ref;
+    static Type _char_ref;
+    static Type _str_ref;
+    static Type _any_ref;
+  
+  public:
+    TypeRegistry();
+
+    // Register/Get a type handle
+    TypeHandle getHandle(const Type& t);
+
+    // Getters for the basic registry types above
+    static TypeHandle voidHandle() { return &_void_ref; }
+    static TypeHandle byteHandle() { return &_byte_ref; }
+    static TypeHandle shortHandle() { return &_short_ref; }
+    static TypeHandle intHandle() { return &_int_ref; }
+    static TypeHandle longHandle() { return &_long_ref; }
+    static TypeHandle floatHandle() { return &_float_ref; }
+    static TypeHandle doubleHandle() { return &_double_ref; }
+    static TypeHandle boolHandle() { return &_bool_ref; }
+    static TypeHandle charHandle() { return &_char_ref; }
+    static TypeHandle strHandle() { return &_str_ref; }
+    static TypeHandle anyHandle() { return &_any_ref; }
+  };
+
+  std::string typeHandleRepr(TypeHandle type);
+
 }
-
-namespace std {
-  std::string to_string(valley::type_handle t);
-}
-
-#endif

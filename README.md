@@ -6,6 +6,6 @@ Valley programming language (major work in progress).
 - **P**lease
 - **E**xcuse
 - **M**y
-- **D**Super
-- **A**Disgusting
-- **S**Code
+- **D**isgusting
+- **A**rse
+- **S**cripts

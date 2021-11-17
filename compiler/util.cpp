@@ -1,10 +1,16 @@
-#include "push_back_stream.hpp"
+#include "util.hpp"
+
 
 namespace valley {
-  push_back_stream::push_back_stream(const get_character& input): _input(input), _line_number(0), _char_index(0) {
+
+  PushBackStream::PushBackStream(const CharGetter& input):
+    _input(input),
+    _line_number(0),
+    _char_index(0)
+  {
   }
 
-  int push_back_stream::operator()() {
+  int PushBackStream::operator()() {
     int ret = -1;
     if (_stack.empty()) {
       ret = _input();
@@ -19,7 +25,7 @@ namespace valley {
     return ret;
   }
 
-  void push_back_stream::push_back(int c) {
+  void PushBackStream::pushBack(int c) {
     _stack.push(c);
     if (c == '\n') {
       --_line_number;
@@ -27,11 +33,12 @@ namespace valley {
     --_char_index;
   }
 
-  size_t push_back_stream::line_number() const {
+  size_t PushBackStream::lineNumber() const {
     return _line_number;
   }
 
-  size_t push_back_stream::char_index() const {
+  size_t PushBackStream::charIndex() const {
     return _char_index;
   }
+  
 }

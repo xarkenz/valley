@@ -1,11 +1,12 @@
 #include "types.hpp"
 
-#include <iostream>
+#include "util.hpp"
 
-#include "helpers.hpp"
 
 namespace valley {
-  bool type_registry::types_less::operator()(const type& t1, const type& t2) const {
+
+  // Returns true if t1 has a smaller index in the Type union than t2
+  bool TypeRegistry::TypeComparator::operator()(const Type& t1, const Type& t2) const {
     const size_t idx1 = t1.index();
     const size_t idx2 = t2.index();
 
@@ -13,136 +14,166 @@ namespace valley {
       return idx1 < idx2;
     }
     
-    switch(idx1) {
-      case 0:
+    switch (idx1) {
+      case 0: // PrimitiveType
         return std::get<0>(t1) < std::get<0>(t2);
-      case 1:
-        return std::get<1>(t1).current < std::get<1>(t2).current;
-      case 2:
-        return std::get<2>(t1).inner < std::get<2>(t2).inner;
-      case 3: {
-        const function_type& ft1 = std::get<3>(t1);
-        const function_type& ft2 = std::get<3>(t2);
 
-        if (ft1.returning != ft2.returning) {
-          return ft1.returning < ft2.returning;
-        }
+      case 1: // ArrayType
+        return std::get<1>(t1).inner < std::get<1>(t2).inner;
 
-        if (ft1.params.size() != ft2.params.size()) {
-          return ft1.params.size() < ft2.params.size();
-        }
+      case 2: //FuncType
+      {
+        const FuncType& ft1 = std::get<2>(t1);
+        const FuncType& ft2 = std::get<2>(t2);
 
-        for (size_t i = 0; i < ft1.params.size(); ++i) {
-          if (ft1.params[i] != ft2.params[i]) {
-            return ft1.params[i] < ft2.params[i];
-          }
+        if (ft1.returnType != ft2.returnType)
+          return ft1.returnType < ft2.returnType;
+
+        if (ft1.paramTypes.size() != ft2.paramTypes.size())
+          return ft1.paramTypes.size() < ft2.paramTypes.size();
+
+        for (size_t i = 0; i < ft1.paramTypes.size(); ++i) {
+          if (ft1.paramTypes[i] != ft2.paramTypes[i])
+            return ft1.paramTypes[i] < ft2.paramTypes[i];
         }
       }
+
+      case 3: // AnyType
+        return std::get<3>(t1).active < std::get<3>(t2).active;
+      
+      case 4: // ClassType
+        return std::get<4>(t1).className.compare(std::get<4>(t2).className) < 0;
+      
+      case 5: // ObjectType
+        return std::get<5>(t1).classType->className.compare(std::get<5>(t2).classType->className) < 0;
     }
 
     return false;
   }
 
-  type_registry::type_registry() {
+  TypeRegistry::TypeRegistry() {
   }
 
-  type_handle type_registry::get_handle(const type& t) {
-    return std::visit(overloaded{
-      [](primitive t) {
+  TypeHandle TypeRegistry::getHandle(const Type& type) {
+    return std::visit(Overloaded{
+      [](PrimitiveType t) {
         switch (t) {
-          case primitive::void_type:
-            return type_registry::void_handle();
-          case primitive::byte_type:
-            return type_registry::byte_handle();
-          case primitive::short_type:
-            return type_registry::short_handle();
-          case primitive::int_type:
-            return type_registry::int_handle();
-          case primitive::long_type:
-            return type_registry::long_handle();
-          case primitive::float_type:
-            return type_registry::float_handle();
-          case primitive::double_type:
-            return type_registry::double_handle();
-          case primitive::bool_type:
-            return type_registry::bool_handle();
-          case primitive::char_type:
-            return type_registry::char_handle();
-          case primitive::str_type:
-            return type_registry::str_handle();
+          case PrimitiveType::VOID:
+            return TypeRegistry::voidHandle();
+
+          case PrimitiveType::BYTE:
+            return TypeRegistry::byteHandle();
+
+          case PrimitiveType::SHORT:
+            return TypeRegistry::shortHandle();
+
+          case PrimitiveType::INT:
+            return TypeRegistry::intHandle();
+
+          case PrimitiveType::LONG:
+            return TypeRegistry::longHandle();
+
+          case PrimitiveType::FLOAT:
+            return TypeRegistry::floatHandle();
+
+          case PrimitiveType::DOUBLE:
+            return TypeRegistry::doubleHandle();
+
+          case PrimitiveType::BOOL:
+            return TypeRegistry::boolHandle();
+
+          case PrimitiveType::CHAR:
+            return TypeRegistry::charHandle();
+
+          case PrimitiveType::STR:
+            return TypeRegistry::strHandle();
         }
       },
+
       [this](const auto& t) {
-        return &(*(_types.insert(t).first));
+        // If the handle doesn't exist, register it
+        // Either way, return the handle corresponding to the type
+        return &(*(_register.insert(t).first));
       }
-    }, t);
+    }, type);
   }
 
-  type type_registry::void_type = primitive::void_type;
-  type type_registry::byte_type = primitive::byte_type;
-  type type_registry::short_type = primitive::short_type;
-  type type_registry::int_type = primitive::int_type;
-  type type_registry::long_type = primitive::long_type;
-  type type_registry::float_type = primitive::float_type;
-  type type_registry::double_type = primitive::double_type;
-  type type_registry::bool_type = primitive::bool_type;
-  type type_registry::char_type = primitive::char_type;
-  type type_registry::str_type = primitive::str_type;
-  type type_registry::any_type_dummy = any_type{&type_registry::void_type};
-}
+  Type TypeRegistry::_void_ref   = PrimitiveType::VOID;
+  Type TypeRegistry::_byte_ref   = PrimitiveType::BYTE;
+  Type TypeRegistry::_short_ref  = PrimitiveType::SHORT;
+  Type TypeRegistry::_int_ref    = PrimitiveType::INT;
+  Type TypeRegistry::_long_ref   = PrimitiveType::LONG;
+  Type TypeRegistry::_float_ref  = PrimitiveType::FLOAT;
+  Type TypeRegistry::_double_ref = PrimitiveType::DOUBLE;
+  Type TypeRegistry::_bool_ref   = PrimitiveType::BOOL;
+  Type TypeRegistry::_char_ref   = PrimitiveType::CHAR;
+  Type TypeRegistry::_str_ref    = PrimitiveType::STR;
+  Type TypeRegistry::_any_ref    = AnyType{nullptr};
 
-namespace std {
-  using namespace valley;
-  
-  std::string to_string(type_handle t) {
-    if (!t)
-      return std::string("(no type)");
-    return std::visit(overloaded{
-      [](const any_type& t) {
+  std::string typeHandleRepr(TypeHandle type) {
+    if (!type)
+      return std::string("<undefined type>");
+    
+    return std::visit(Overloaded{
+      [](const AnyType& t) {
         return std::string("any");
       },
-      [](primitive t) {
+      [](PrimitiveType t) {
         switch (t) {
-          case primitive::void_type:
+          case PrimitiveType::VOID:
             return std::string("void");
-          case primitive::byte_type:
+
+          case PrimitiveType::BYTE:
             return std::string("byte");
-          case primitive::short_type:
+
+          case PrimitiveType::SHORT:
             return std::string("short");
-          case primitive::int_type:
+
+          case PrimitiveType::INT:
             return std::string("int");
-          case primitive::long_type:
+
+          case PrimitiveType::LONG:
             return std::string("long");
-          case primitive::float_type:
+
+          case PrimitiveType::FLOAT:
             return std::string("float");
-          case primitive::double_type:
+
+          case PrimitiveType::DOUBLE:
             return std::string("double");
-          case primitive::bool_type:
+
+          case PrimitiveType::BOOL:
             return std::string("bool");
-          case primitive::char_type:
+
+          case PrimitiveType::CHAR:
             return std::string("char");
-          case primitive::str_type:
+
+          case PrimitiveType::STR:
             return std::string("str");
-          default:
-            return std::string("(unknown type)");
         }
       },
-      [](const array_type& at) {
-        std::string ret = to_string(at.inner);
+      [](const ArrayType& t) {
+        std::string ret = typeHandleRepr(t.inner);
         ret += "[]";
         return ret;
       },
-      [](const function_type& ft) {
-        std::string ret = to_string(ft.returning) + "(";
+      [](const FuncType& t) {
+        std::string ret = typeHandleRepr(t.returnType) + "(";
         const char* separator = "";
-        for (type_handle param : ft.params) {
-          ret += separator + to_string(param);
+        for (TypeHandle param : t.paramTypes) {
+          ret += separator + typeHandleRepr(param);
           separator = ", ";
         }
-        if (ft.has_varargs)
+        if (t.hasArgCatch)
           ret += "...";
         return ret + ")";
+      },
+      [](const ClassType& t) {
+        return std::string("class");
+      },
+      [](const ObjectType& t) {
+        return t.classType->className;
       }
-    }, *t);
+    }, *type);
   }
+
 }

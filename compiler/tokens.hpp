@@ -1,5 +1,4 @@
-#ifndef TOKENS_HPP
-#define TOKENS_HPP
+#pragma once
 
 #include <cstdint>
 #include <optional>
@@ -7,141 +6,132 @@
 #include <string_view>
 #include <variant>
 
-#include "push_back_stream.hpp"
 #include "types.hpp"
+#include "util.hpp"
+
 
 namespace valley {
-  enum struct reserved_token {
-    ampr,
-    atsym,
-    bslsh,
-    caret,
-    colon,
-    comma,
-    dollr,
-    equal,
-    exclm,
-    hash,
-    minus,
-    plus,
-    point,
-    prcnt,
-    qmark,
-    semic,
-    slash,
-    star,
-    tilde,
-    vbar,
 
-    langle,
-    rangle,
-    lbrace,
-    rbrace,
-    lbrckt,
-    rbrckt,
-    lparen,
-    rparen,
+  enum struct ReservedToken {
+    AMPERSAND,
+    ANGLE_L,
+    ANGLE_R,
+    ASTERISK,
+    AT,
+    BACKSLASH,
+    BAR,
+    CARET,
+    COLON,
+    COMMA,
+    CURLY_L,
+    CURLY_R,
+    DOLLAR,
+    EQUAL,
+    EXCLAMATION,
+    HASH,
+    HYPHEN,
+    PERIOD,
+    PERCENT,
+    PLUS,
+    QUESTION,
+    ROUND_L,
+    ROUND_R,
+    SEMICOLON,
+    SLASH,
+    SQUARE_L,
+    SQUARE_R,
+    TILDE,
 
-    ampr_eq,
-    caret_eq,
-    exclm_eq,
-    minus_eq,
-    plus_eq,
-    prcnt_eq,
-    slash_eq,
-    star_eq,
-    vbar_eq,
+    D_AMPERSAND,
+    D_ANGLE_L,
+    D_ANGLE_R,
+    D_ASTERISK,
+    D_BAR,
+    D_CARET,
+    D_EQUAL,
+    D_HYPHEN,
+    D_PLUS,
 
-    langle_eq,
-    rangle_eq,
+    AMPERSAND_EQUAL,
+    ANGLE_L_EQUAL,
+    ANGLE_R_EQUAL,
+    ASTERISK_EQUAL,
+    BAR_EQUAL,
+    CARET_EQUAL,
+    EXCLAMATION_EQUAL,
+    HYPHEN_EQUAL,
+    PERCENT_EQUAL,
+    PLUS_EQUAL,
+    SLASH_EQUAL,
 
-    d_ampr,
-    d_caret,
-    d_equal,
-    d_minus,
-    d_plus,
-    d_star,
-    d_vbar,
+    D_ANGLE_L_EQUAL,
+    D_ANGLE_R_EQUAL,
+    D_ASTERISK_EQUAL,
 
-    d_langle,
-    d_rangle,
+    ARROW_R,
+    ELLIPSIS,
 
-    d_star_eq,
+    KW_BREAK,
+    KW_CASE,
+    KW_CATCH,
+    KW_CONTINUE,
+    KW_DEFAULT,
+    KW_DO,
+    KW_ELIF,
+    KW_ELSE,
+    KW_FINAL,
+    KW_FINALLY,
+    KW_FOR,
+    KW_IF,
+    KW_IMPORT,
+    KW_RETURN,
+    KW_STATIC,
+    KW_SWITCH,
+    KW_TRY,
+    KW_WHILE,
 
-    d_langle_eq,
-    d_rangle_eq,
-
-    ellipsis,
-    arrow,
-
-    kw_import,
-    kw_package,
-
-    kw_if,
-    kw_elif,
-    kw_else,
-
-    kw_switch,
-    kw_case,
-    kw_default,
-
-    kw_for,
-    kw_while,
-    kw_do,
-
-    kw_break,
-    kw_continue,
-    kw_return,
-
-    kw_try,
-    kw_catch,
-    kw_finally,
-
-    kw_final,
-    kw_static,
-
-    typekw_any,
-    typekw_bool,
-    typekw_byte,
-    typekw_char,
-    typekw_class,
-    typekw_double,
-    typekw_float,
-    typekw_func,
-    typekw_int,
-    typekw_long,
-    typekw_short,
-    typekw_str,
-    typekw_void,
+    TYPE_ANY,
+    TYPE_BOOL,
+    TYPE_BYTE,
+    TYPE_CHAR,
+    TYPE_CLASS,
+    TYPE_DOUBLE,
+    TYPE_FLOAT,
+    TYPE_FUNC,
+    TYPE_INT,
+    TYPE_LONG,
+    TYPE_SHORT,
+    TYPE_STR,
+    TYPE_VOID,
   };
 
-  std::optional<reserved_token> get_keyword(std::string_view word);
-  std::optional<reserved_token> get_operator(push_back_stream& stream);
+  std::optional<ReservedToken> getKeyword(std::string_view word);
+  std::optional<ReservedToken> getOperator(PushBackStream& stream);
 
-  struct identifier {
+  struct Identifier {
     std::string name;
   };
 
-  bool operator==(const identifier& id1, const identifier& id2);
-  bool operator!=(const identifier& id1, const identifier& id2);
+  bool operator==(const Identifier& id1, const Identifier& id2);
+  bool operator!=(const Identifier& id1, const Identifier& id2);
 
-  struct eof {
+  struct Eof {
   };
 
-  bool operator==(const eof&, const eof&);
-  bool operator!=(const eof&, const eof&);
+  bool operator==(const Eof&, const Eof&);
+  bool operator!=(const Eof&, const Eof&);
 
-  struct void_value {
+  struct VoidValue {
   };
 
-  bool operator==(const void_value&, const void_value&);
-  bool operator!=(const void_value&, const void_value&);
+  bool operator==(const VoidValue&, const VoidValue&);
+  bool operator!=(const VoidValue&, const VoidValue&);
 
-  using token_value = std::variant<
-    eof,
-    reserved_token,
-    identifier,
-    void_value, // void
+  using TokenValue = std::variant<
+    Eof,
+    ReservedToken,
+    Identifier,
+    VoidValue, // void (null)
     int8_t, // byte
     int16_t, // short
     int32_t, // int
@@ -153,57 +143,55 @@ namespace valley {
     std::string // str
   >;
 
-  class token {
-    private:
-      token_value _value;
-      size_t _line_number;
-      size_t _char_index;
-    
-    public:
-      token(token_value value, size_t line_number, size_t char_index);
+  class Token {
+  private:
+    TokenValue _value;
+    size_t _line_number;
+    size_t _char_index;
+  
+  public:
+    Token(TokenValue value, size_t lineNumber, size_t charIndex);
 
-      bool is_eof() const;
-      bool is_reserved_token() const;
-      bool is_identifier() const;
-      bool is_null() const;
-      bool is_byte() const;
-      bool is_short() const;
-      bool is_int() const;
-      bool is_long() const;
-      bool is_float() const;
-      bool is_double() const;
-      bool is_bool() const;
-      bool is_char() const;
-      bool is_str() const;
+    bool isEof() const;
+    bool isReservedToken() const;
+    bool isIdentifier() const;
+    bool isNull() const;
+    bool isByte() const;
+    bool isShort() const;
+    bool isInt() const;
+    bool isLong() const;
+    bool isFloat() const;
+    bool isDouble() const;
+    bool isBool() const;
+    bool isChar() const;
+    bool isStr() const;
 
-      bool is_literal() const;
-      bool is_integer() const;
-      bool is_numeric() const;
+    bool isLiteral() const;
+    bool isIntegral() const;
+    bool isNumeric() const;
 
-      const token_value& get_value() const;
+    const TokenValue& getValue() const;
 
-      reserved_token get_reserved_token() const;
-      const identifier& get_identifier() const;
-      int8_t get_byte() const;
-      int16_t get_short() const;
-      int32_t get_int() const;
-      int64_t get_long() const;
-      float get_float() const;
-      double get_double() const;
-      bool get_bool() const;
-      char get_char() const;
-      const std::string& get_str() const;
+    ReservedToken getReservedToken() const;
+    const Identifier& getIdentifier() const;
+    int8_t getByte() const;
+    int16_t getShort() const;
+    int32_t getInt() const;
+    int64_t getLong() const;
+    float getFloat() const;
+    double getDouble() const;
+    bool getBool() const;
+    char getChar() const;
+    const std::string& getStr() const;
 
-      size_t get_line_number() const;
-      size_t get_char_index() const;
+    size_t lineNumber() const;
+    size_t charIndex() const;
 
-      bool has_value(token_value value) const;
+    bool hasValue(TokenValue value) const;
+
+    std::string toString() const;
   };
-}
 
-namespace std {
-  string to_string(valley::reserved_token t);
-  string to_string(const valley::token& t);
-}
+  std::string reservedTokenRepr(ReservedToken t);
 
-#endif
+}
