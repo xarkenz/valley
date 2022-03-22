@@ -1,4 +1,6 @@
-import .io;
+// This is an old code prototype.
+
+/*import .io;
 import .api;
 
 class Console: io.CharOutputStream, io.CharInputStream {
@@ -42,4 +44,4 @@ class String {
     return String(self.value + obj);
   }
 
-}
+}*/

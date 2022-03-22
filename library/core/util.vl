@@ -1,0 +1,54 @@
+public import {
+    // Statements here will execute upon import from another file
+}
+
+
+public class Array <type T> is List<T> {
+
+    public final type itemType = T;
+    private T[] arr;
+    private int len;
+
+    public Array(int capacity = 10) {
+        arr = T[](length = capacity);
+        len = 0;
+    }
+
+    public get int length() {
+        return len;
+    }
+
+    public get int capacity() {
+        return arr.length;
+    }
+
+    public set int capacity(int value) {
+        T[] newArr = T[](length = value);
+        if (len > value) len = value;
+        with (int i = 0) while (i < len : i++) {
+            newArr[i] = arr[i];
+        }
+        arr = newArr;
+        return value;
+    }
+
+    public void add(T item, int index = -1) {
+        if (index < 0) index += len + 1;
+        if (len + 1 > arr.length) {
+            T[] newArr = T[](length = arr.length == 0 ? 1 : arr.length + arr.length);
+            with (int i = 0) while (i < len + 1 : i++) {
+                if (i == index) newArr[i] = item;
+                elif (i > index) newArr[i] = arr[i - 1];
+                else newArr[i] = arr[i];
+            }
+            arr = newArr;
+        } else {
+            with (int i = len) while (i >= index : i--) {
+                if (i == index) arr[i] = item;
+                else arr[i] = arr[i - 1];
+            }
+        }
+        len++;
+    }
+
+}

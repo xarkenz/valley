@@ -1,4 +1,6 @@
-class CharOutputStream {
+// This is an old code prototype.
+
+/*class CharOutputStream {
 
   CharOutputStream _lshift_(any obj) {
     // code
@@ -24,4 +26,4 @@ class CharOutputStream {
     self.flush();
   }
 
-}
+}*/
