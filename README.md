@@ -1,11 +1,9 @@
-# valley
-Valley programming language (major work in progress).
+# Valley Programing Language
 
-**PEMDAS:**
+### version uhh idk
 
-- **P**lease
-- **E**xcuse
-- **M**y
-- **D**isgusting
-- **A**rse
-- **S**cripts
+---
+
+I am rewriting the compiler. *Again.*
+
+So, nothing here yet.
