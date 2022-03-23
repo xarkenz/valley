@@ -7,7 +7,7 @@
 // ---- MACROS ---- //
 
 #define VL_READ() getc(parser->stream); ++parser->pos
-#define VL_UNREAD(ch) ungetc(ch, parser->stream); --parser->pos
+#define VL_UNREAD(c) ungetc(c, parser->stream); --parser->pos
 #define VL_EOF() feof(parser->stream)
 
 // ---- TYPEDEFS ---- //
@@ -164,6 +164,10 @@ typedef struct VLParser {
 
 void vlGrabNameToken(VLParser* parser);
 void vlGrabNumberToken(VLParser* parser);
+void vlGrabStringToken(VLParser* parser);
+void vlGrabSymbolToken(VLParser* parser);
+void vlSkipLineComment(VLParser* parser);
+void vlSkipBlockComment(VLParser* parser);
 void vlNextToken(VLParser* parser);
 
 #endif /* VALLEY_H */
