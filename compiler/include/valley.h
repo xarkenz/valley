@@ -138,6 +138,14 @@ typedef enum VLDataType {
     VL_TYPE_FUNCTION,
 } VLDataType;
 
+typedef enum VLStatus {
+    VL_STATUS_OK,
+    VL_STATUS_OUT_OF_MEM,
+    VL_STATUS_UNEXPECTED,
+    VL_STATUS_EXPECTED,
+    VL_STATUS_UNCLOSED,
+} VLStatus;
+
 typedef struct VLToken {
     VLTokenKind kind;
     size_t pos;
@@ -158,16 +166,22 @@ typedef struct VLParser {
     FILE* stream;
     size_t pos;
     VLToken token;
+    VLStatus status;
+    const char* what;
 } VLParser;
 
 // ---- FUNCTION PROTOTYPES ---- //
+
+void vlPrintToken(VLToken token);
 
 void vlGrabNameToken(VLParser* parser);
 void vlGrabNumberToken(VLParser* parser);
 void vlGrabStringToken(VLParser* parser);
 void vlGrabSymbolToken(VLParser* parser);
+
 void vlSkipLineComment(VLParser* parser);
 void vlSkipBlockComment(VLParser* parser);
+
 void vlNextToken(VLParser* parser);
 
 #endif /* VALLEY_H */

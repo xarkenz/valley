@@ -9,11 +9,11 @@ int main() {
         printf("Unable to load file '%s'.\n", path);
         return 0;
     }
-    VLParser parser = {stream, -1, {.kind = VL_TOKEN_EOF, -1}};
+    VLParser parser = {stream, -1, {.kind = VL_TOKEN_EOF, -1}, VL_STATUS_OK, NULL};
     vlNextToken(&parser);
-    printf("---- TOKENS ----\n");
+    printf("------------ TOKENS ------------\n");
     while (parser.token.kind != VL_TOKEN_EOF) {
-        printf("VL_TOKEN_NAME:  %s\n", parser.token.stringValue.first);
+        vlPrintToken(parser.token);
         vlNextToken(&parser);
     }
     fclose(stream);
