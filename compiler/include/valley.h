@@ -9,6 +9,7 @@
 #define VL_READ() getc(parser->stream); ++parser->pos
 #define VL_UNREAD(c) ungetc(c, parser->stream); --parser->pos
 #define VL_EOF() feof(parser->stream)
+#define VL_CHECK_KW(str, value) if (strcmp(name, str) == 0) { VLToken token = {.kind = VL_KW_##value, .pos = pos}; parser->token = token; return; }
 
 // ---- TYPEDEFS ---- //
 
@@ -57,6 +58,7 @@ typedef enum VLTokenKind {
     VL_KW_TRY,
     VL_KW_CATCH,
     VL_KW_FINALLY,
+    VL_KW_THROW,
     VL_KW_RETURN,
     VL_KW_FINAL,
     VL_KW_PUBLIC,
@@ -88,6 +90,8 @@ typedef enum VLTokenKind {
     VL_SYM_GT,
     VL_SYM_LTEQ,
     VL_SYM_GTEQ,
+    VL_SYM_SAME,
+    VL_SYM_NSAME,
     VL_SYM_INC,
     VL_SYM_DEC,
     VL_SYM_PUT,
