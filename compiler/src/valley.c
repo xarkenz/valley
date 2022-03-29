@@ -240,6 +240,8 @@ void vlGrabStringToken(VLParser* parser) {
             VLToken token = {.kind = VL_TOKEN_STR, .pos = pos, .stringValue = string};
             parser->token = token;
             return;
+        } else if (c == '\n' || c == '\r' || c == '\t') {
+            break;
         }
 
         rawString = realloc(rawString, len + sizeof(c) + sizeof(char));
@@ -453,7 +455,7 @@ void vlSkipBlockComment(VLParser* parser) {
 }
 
 
-void vlNextToken(VLParser* parser) {
+void vlGrabToken(VLParser* parser) {
     int c = VL_READ();
     while (true) {
         if (VL_EOF()) {
@@ -503,5 +505,29 @@ void vlNextToken(VLParser* parser) {
 
         // If c isn't accounted for, skip it
         c = VL_READ();
+    }
+}
+
+
+bool vlNextToken(VLParser* parser) {
+    vlGrabToken(parser);
+
+    switch (parser->status) {
+        case VL_STATUS_OK:
+            return true;
+        case VL_STATUS_OUT_OF_MEM:
+            printf(VL_ANSI_RED "Error: Out of available memory." VL_ANSI_RESET "\n");
+            return false;
+        case VL_STATUS_UNEXPECTED:
+            printf(VL_ANSI_RED "Error: Encountered unexpected '%s'." VL_ANSI_RESET "\n", parser->what);
+            return false;
+        case VL_STATUS_EXPECTED:
+            printf(VL_ANSI_RED "Error: Expected '%s'." VL_ANSI_RESET "\n", parser->what);
+            return false;
+        case VL_STATUS_UNCLOSED:
+            printf(VL_ANSI_RED "Error: Unable to find a matching '%s'." VL_ANSI_RESET "\n", parser->what);
+            return false;
+        default:
+            return false;
     }
 }

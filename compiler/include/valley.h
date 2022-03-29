@@ -1,6 +1,7 @@
 #ifndef VALLEY_H
 #define VALLEY_H
 
+#include <stdio.h>
 #include <stdint.h>
 #include <stdbool.h>
 
@@ -10,6 +11,14 @@
 #define VL_UNREAD(c) ungetc(c, parser->stream); --parser->pos
 #define VL_EOF() feof(parser->stream)
 #define VL_CHECK_KW(str, value) if (strcmp(name, str) == 0) { VLToken token = {.kind = VL_KW_##value, .pos = pos}; parser->token = token; return; }
+
+#define VL_ANSI_RED     "\x1b[31m"
+#define VL_ANSI_GREEN   "\x1b[32m"
+#define VL_ANSI_YELLOW  "\x1b[33m"
+#define VL_ANSI_BLUE    "\x1b[34m"
+#define VL_ANSI_MAGENTA "\x1b[35m"
+#define VL_ANSI_CYAN    "\x1b[36m"
+#define VL_ANSI_RESET   "\x1b[0m"
 
 // ---- TYPEDEFS ---- //
 
@@ -186,6 +195,7 @@ void vlGrabSymbolToken(VLParser* parser);
 void vlSkipLineComment(VLParser* parser);
 void vlSkipBlockComment(VLParser* parser);
 
-void vlNextToken(VLParser* parser);
+void vlGrabToken(VLParser* parser);
+bool vlNextToken(VLParser* parser);
 
 #endif /* VALLEY_H */
