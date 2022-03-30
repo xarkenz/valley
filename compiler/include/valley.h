@@ -52,6 +52,7 @@ typedef enum VLTokenKind {
     VL_TOKEN_BOOL,
 
     // Keywords
+    VL_KW_IS,
     VL_KW_IF,
     VL_KW_ELIF,
     VL_KW_ELSE,
@@ -134,6 +135,99 @@ typedef enum VLTokenKind {
 //    VL_SYM_DOLLAR,
 } VLTokenKind;
 
+typedef enum VLExprKind {
+    VL_EXPR_OP,
+    VL_EXPR_NAME,
+    VL_EXPR_STR,
+    VL_EXPR_CHAR,
+    VL_EXPR_BYTE,
+    VL_EXPR_SHORT,
+    VL_EXPR_INT,
+    VL_EXPR_LONG,
+    VL_EXPR_FLOAT,
+    VL_EXPR_DOUBLE,
+    VL_EXPR_BOOL,
+} VLExprKind;
+
+typedef enum VLOperation {
+    VL_OP_POS,
+    VL_OP_NEG,
+    VL_OP_ADD,
+    VL_OP_SUB,
+    VL_OP_MUL,
+    VL_OP_DIV,
+    VL_OP_MOD,
+    VL_OP_EXP,
+    VL_OP_NOT,
+    VL_OP_AND,
+    VL_OP_XOR,
+    VL_OP_OR,
+    VL_OP_LSHIFT,
+    VL_OP_RSHIFT,
+    VL_OP_LNOT,
+    VL_OP_LAND,
+    VL_OP_LXOR,
+    VL_OP_LOR,
+    VL_OP_EQ,
+    VL_OP_NEQ,
+    VL_OP_LT,
+    VL_OP_GT,
+    VL_OP_LTEQ,
+    VL_OP_GTEQ,
+    VL_OP_SAME,
+    VL_OP_NSAME,
+    VL_OP_IS,
+    VL_OP_INC_BEF,
+    VL_OP_INC_AFT,
+    VL_OP_DEC_BEF,
+    VL_OP_DEC_AFT,
+    VL_OP_PUT,
+    VL_OP_ADD_PUT,
+    VL_OP_SUB_PUT,
+    VL_OP_MUL_PUT,
+    VL_OP_DIV_PUT,
+    VL_OP_MOD_PUT,
+    VL_OP_EXP_PUT,
+    VL_OP_AND_PUT,
+    VL_OP_XOR_PUT,
+    VL_OP_OR_PUT,
+    VL_OP_LSHIFT_PUT,
+    VL_OP_RSHIFT_PUT,
+    VL_OP_CAST,
+    VL_OP_MEMBER,
+    VL_OP_COND,
+    VL_OP_LIST,
+    VL_OP_INDEX,
+    VL_OP_CALL,
+    VL_OP_ARR_INIT,
+    VL_OP_DECLARE,
+    VL_OP_DECLARE_FINAL,
+    VL_OP_EXTEND,
+} VLOperation;
+
+typedef enum VLPrecedence {
+    VL_PREC_ACCESS,
+    VL_PREC_POSTFIX,
+    VL_PREC_PREFIX,
+    VL_PREC_DECLARATION,
+    VL_PREC_EXPONENTIAL,
+    VL_PREC_MULTIPLICATIVE,
+    VL_PREC_ADDITIVE,
+    VL_PREC_SHIFT,
+    VL_PREC_RELATIONAL,
+    VL_PREC_EQUALITY,
+    VL_PREC_BITWISE_AND,
+    VL_PREC_BITWISE_XOR,
+    VL_PREC_BITWISE_OR,
+    VL_PREC_LOGICAL_AND,
+    VL_PREC_LOGICAL_XOR,
+    VL_PREC_LOGICAL_OR,
+    VL_PREC_CAST,
+    VL_PREC_CONDITIONAL,
+    VL_PREC_ASSIGNMENT,
+    VL_PREC_STRUCTURAL,
+} VLPrecedence;
+
 typedef enum VLDataType {
     VL_TYPE_VOID,
     VL_TYPE_STR,
@@ -175,6 +269,25 @@ typedef struct VLToken {
     };
 } VLToken;
 
+typedef struct VLExpression {
+    VLExprKind kind;
+    size_t pos;
+    size_t childCount;
+    struct VLExpression* children;
+    union {
+        VLOperation opValue;
+        VLString stringValue;
+        VLChar charValue;
+        VLByte byteValue;
+        VLShort shortValue;
+        VLInt intValue;
+        VLLong longValue;
+        VLFloat floatValue;
+        VLDouble doubleValue;
+        VLBool boolValue;
+    };
+} VLExpression;
+
 typedef struct VLParser {
     FILE* stream;
     size_t pos;
@@ -197,5 +310,10 @@ void vlSkipBlockComment(VLParser* parser);
 
 void vlGrabToken(VLParser* parser);
 bool vlNextToken(VLParser* parser);
+
+VLPrecedence vlGetPrecedence(VLOperation operation);
+bool vlIsLeftToRightAssociative(VLPrecedence precedence);
+
+VLExpression* vlParseExpr(VLParser* parser, VLDataType type, bool lvalue, bool allowComma, bool allowEmpty);
 
 #endif /* VALLEY_H */

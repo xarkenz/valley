@@ -29,6 +29,7 @@ void vlPrintToken(VLToken token) {
         case VL_TOKEN_FLOAT:    printf("%ff", token.floatValue); break;
         case VL_TOKEN_DOUBLE:   printf("%f", token.doubleValue); break;
         case VL_TOKEN_BOOL:     printf(token.boolValue ? "TRUE" : "FALSE"); break;
+        case VL_KW_IS:          printf("IS"); break;
         case VL_KW_IF:          printf("IF"); break;
         case VL_KW_ELIF:        printf("ELIF"); break;
         case VL_KW_ELSE:        printf("ELSE"); break;
@@ -127,6 +128,7 @@ void vlGrabNameToken(VLParser* parser) {
     }
     VL_UNREAD(c);
 
+    VL_CHECK_KW("is", IS);
     VL_CHECK_KW("if", IF);
     VL_CHECK_KW("elif", ELIF);
     VL_CHECK_KW("else", ELSE);
@@ -221,7 +223,7 @@ void vlGrabNumberToken(VLParser* parser) {
 
 void vlGrabStringToken(VLParser* parser) {
     size_t pos = parser->pos;
-    char* rawString = calloc(1, sizeof(char));
+    char* rawStr = calloc(1, sizeof(char));
     size_t len = 0;
 
     int c = VL_READ();
@@ -236,7 +238,7 @@ void vlGrabStringToken(VLParser* parser) {
                 default: break;
             }
         } else if (c == '"') {
-            VLString string = {rawString, len};
+            VLString string = {rawStr, len};
             VLToken token = {.kind = VL_TOKEN_STR, .pos = pos, .stringValue = string};
             parser->token = token;
             return;
@@ -244,9 +246,12 @@ void vlGrabStringToken(VLParser* parser) {
             break;
         }
 
-        rawString = realloc(rawString, len + sizeof(c) + sizeof(char));
-        if (!rawString) break; // TODO: flag error instead
-        strncat(rawString, (const char*) &c, 1);
+        rawStr = realloc(rawStr, len + sizeof(c) + sizeof(char));
+        if (!rawStr) {
+            parser->status = VL_STATUS_OUT_OF_MEM;
+            break;
+        }
+        strncat(rawStr, (const char*) &c, 1);
         ++len;
         c = VL_READ();
     }
@@ -516,7 +521,7 @@ bool vlNextToken(VLParser* parser) {
         case VL_STATUS_OK:
             return true;
         case VL_STATUS_OUT_OF_MEM:
-            printf(VL_ANSI_RED "Error: Out of available memory." VL_ANSI_RESET "\n");
+            printf(VL_ANSI_RED "Error: Ran out of available memory." VL_ANSI_RESET "\n");
             return false;
         case VL_STATUS_UNEXPECTED:
             printf(VL_ANSI_RED "Error: Encountered unexpected '%s'." VL_ANSI_RESET "\n", parser->what);
@@ -530,4 +535,101 @@ bool vlNextToken(VLParser* parser) {
         default:
             return false;
     }
+}
+
+
+VLPrecedence vlGetPrecedence(VLOperation operation) {
+    switch (operation) {
+        case VL_OP_CALL:
+        case VL_OP_INDEX:
+        case VL_OP_MEMBER:
+            return VL_PREC_ACCESS;
+        case VL_OP_INC_AFT:
+        case VL_OP_DEC_AFT:
+        case VL_OP_EXTEND:
+            return VL_PREC_POSTFIX;
+        case VL_OP_POS:
+        case VL_OP_NEG:
+        case VL_OP_NOT:
+        case VL_OP_LNOT:
+        case VL_OP_INC_BEF:
+        case VL_OP_DEC_BEF:
+            return VL_PREC_PREFIX;
+        case VL_OP_DECLARE:
+        case VL_OP_DECLARE_FINAL:
+            return VL_PREC_DECLARATION;
+        case VL_OP_EXP:
+            return VL_PREC_EXPONENTIAL;
+        case VL_OP_MUL:
+        case VL_OP_DIV:
+        case VL_OP_MOD:
+            return VL_PREC_MULTIPLICATIVE;
+        case VL_OP_ADD:
+        case VL_OP_SUB:
+            return VL_PREC_ADDITIVE;
+        case VL_OP_LSHIFT:
+        case VL_OP_RSHIFT:
+            return VL_PREC_SHIFT;
+        case VL_OP_LT:
+        case VL_OP_GT:
+        case VL_OP_LTEQ:
+        case VL_OP_GTEQ:
+        case VL_OP_IS:
+            return VL_PREC_RELATIONAL;
+        case VL_OP_EQ:
+        case VL_OP_NEQ:
+        case VL_OP_SAME:
+        case VL_OP_NSAME:
+            return VL_PREC_EQUALITY;
+        case VL_OP_AND:
+            return VL_PREC_BITWISE_AND;
+        case VL_OP_XOR:
+            return VL_PREC_BITWISE_XOR;
+        case VL_OP_OR:
+            return VL_PREC_BITWISE_OR;
+        case VL_OP_LAND:
+            return VL_PREC_LOGICAL_AND;
+        case VL_OP_LXOR:
+            return VL_PREC_LOGICAL_XOR;
+        case VL_OP_LOR:
+            return VL_PREC_LOGICAL_OR;
+        case VL_OP_CAST:
+            return VL_PREC_CAST;
+        case VL_OP_COND:
+            return VL_PREC_CONDITIONAL;
+        case VL_OP_PUT:
+        case VL_OP_ADD_PUT:
+        case VL_OP_SUB_PUT:
+        case VL_OP_MUL_PUT:
+        case VL_OP_DIV_PUT:
+        case VL_OP_MOD_PUT:
+        case VL_OP_EXP_PUT:
+        case VL_OP_AND_PUT:
+        case VL_OP_XOR_PUT:
+        case VL_OP_OR_PUT:
+        case VL_OP_LSHIFT_PUT:
+        case VL_OP_RSHIFT_PUT:
+            return VL_PREC_ASSIGNMENT;
+        case VL_OP_ARR_INIT:
+        case VL_OP_LIST:
+            return VL_PREC_STRUCTURAL;
+        default:
+            return 0;
+    }
+}
+
+
+bool vlIsLeftToRightAssociative(VLPrecedence precedence) {
+    switch (precedence) {
+        case VL_PREC_PREFIX:
+        case VL_PREC_ASSIGNMENT:
+            return false;
+        default:
+            return true;
+    }
+}
+
+
+VLExpression* vlParseExpr(VLParser* parser, VLDataType type, bool lvalue, bool allowComma, bool allowEmpty) {
+    return NULL; // temporary
 }
