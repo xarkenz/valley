@@ -538,6 +538,59 @@ bool vlNextToken(VLParser* parser) {
 }
 
 
+VLOperation vlGetOperation(VLTokenKind kind, bool prefix) {
+    switch (kind) {
+        case VL_SYM_ADD: return prefix ? VL_OP_POS : VL_OP_ADD;
+        case VL_SYM_SUB: return prefix ? VL_OP_NEG : VL_OP_SUB;
+        case VL_SYM_MUL: return VL_OP_MUL;
+        case VL_SYM_DIV: return VL_OP_DIV;
+        case VL_SYM_MOD: return VL_OP_MOD;
+        case VL_SYM_EXP: return VL_OP_EXP;
+        case VL_SYM_NOT: return VL_OP_NOT;
+        case VL_SYM_AND: return VL_OP_AND;
+        case VL_SYM_XOR: return VL_OP_XOR;
+        case VL_SYM_OR: return VL_OP_OR;
+        case VL_SYM_LSHIFT: return VL_OP_LSHIFT;
+        case VL_SYM_RSHIFT: return VL_OP_RSHIFT;
+        case VL_SYM_LNOT: return VL_OP_LNOT;
+        case VL_SYM_LAND: return VL_OP_LAND;
+        case VL_SYM_LXOR: return VL_OP_LXOR;
+        case VL_SYM_LOR: return VL_OP_LOR;
+        case VL_SYM_EQ: return VL_OP_EQ;
+        case VL_SYM_NEQ: return VL_OP_NEQ;
+        case VL_SYM_LT: return VL_OP_LT;
+        case VL_SYM_GT: return VL_OP_GT;
+        case VL_SYM_LTEQ: return VL_OP_LTEQ;
+        case VL_SYM_GTEQ: return VL_OP_GTEQ;
+        case VL_SYM_SAME: return VL_OP_SAME;
+        case VL_SYM_NSAME: return VL_OP_NSAME;
+        case VL_SYM_INC: return prefix ? VL_OP_INC_BEF : VL_OP_INC_AFT;
+        case VL_SYM_DEC: return prefix ? VL_OP_DEC_BEF : VL_OP_DEC_AFT;
+        case VL_SYM_PUT: return VL_OP_PUT;
+        case VL_SYM_ADD_PUT: return VL_OP_ADD_PUT;
+        case VL_SYM_SUB_PUT: return VL_OP_SUB_PUT;
+        case VL_SYM_MUL_PUT: return VL_OP_MUL_PUT;
+        case VL_SYM_DIV_PUT: return VL_OP_DIV_PUT;
+        case VL_SYM_MOD_PUT: return VL_OP_MOD_PUT;
+        case VL_SYM_EXP_PUT: return VL_OP_EXP_PUT;
+        case VL_SYM_AND_PUT: return VL_OP_AND_PUT;
+        case VL_SYM_XOR_PUT: return VL_OP_XOR_PUT;
+        case VL_SYM_OR_PUT: return VL_OP_OR_PUT;
+        case VL_SYM_LSHIFT_PUT: return VL_OP_LSHIFT_PUT;
+        case VL_SYM_RSHIFT_PUT: return VL_OP_RSHIFT_PUT;
+        case VL_SYM_COMMA: return VL_OP_LIST;
+        case VL_SYM_COND: return VL_OP_COND;
+        case VL_SYM_L_PAREN: return VL_OP_CALL;
+        case VL_SYM_L_SQUARE: return VL_OP_INDEX;
+        case VL_SYM_DOT: return VL_OP_MEMBER;
+        case VL_SYM_ARROW: return VL_OP_CAST;
+        case VL_SYM_ELLIPSIS: return VL_OP_EXTEND;
+        case VL_KW_IS: return VL_OP_IS;
+        default: return 0;
+    }
+}
+
+
 VLPrecedence vlGetPrecedence(VLOperation operation) {
     switch (operation) {
         case VL_OP_CALL:

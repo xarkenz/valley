@@ -136,7 +136,6 @@ typedef enum VLTokenKind {
 } VLTokenKind;
 
 typedef enum VLExprKind {
-    VL_EXPR_OP,
     VL_EXPR_NAME,
     VL_EXPR_STR,
     VL_EXPR_CHAR,
@@ -147,6 +146,10 @@ typedef enum VLExprKind {
     VL_EXPR_FLOAT,
     VL_EXPR_DOUBLE,
     VL_EXPR_BOOL,
+    VL_EXPR_UNARY,
+    VL_EXPR_BINARY,
+    VL_EXPR_TERNARY,
+    VL_EXPR_MULTI,
 } VLExprKind;
 
 typedef enum VLOperation {
@@ -272,10 +275,7 @@ typedef struct VLToken {
 typedef struct VLExpression {
     VLExprKind kind;
     size_t pos;
-    size_t childCount;
-    struct VLExpression* children;
     union {
-        VLOperation opValue;
         VLString stringValue;
         VLChar charValue;
         VLByte byteValue;
@@ -285,6 +285,26 @@ typedef struct VLExpression {
         VLFloat floatValue;
         VLDouble doubleValue;
         VLBool boolValue;
+        struct {
+            VLOperation operation;
+            struct VLExpression* child;
+        } unaryOp;
+        struct {
+            VLOperation operation;
+            struct VLExpression* first;
+            struct VLExpression* second;
+        } binaryOp;
+        struct {
+            VLOperation operation;
+            struct VLExpression* first;
+            struct VLExpression* second;
+            struct VLExpression* third;
+        } ternaryOp;
+        struct {
+            VLOperation operation;
+            struct VLExpression* children;
+            size_t count;
+        } multiOp;
     };
 } VLExpression;
 
@@ -311,6 +331,7 @@ void vlSkipBlockComment(VLParser* parser);
 void vlGrabToken(VLParser* parser);
 bool vlNextToken(VLParser* parser);
 
+VLOperation vlGetOperation(VLTokenKind kind, bool prefix);
 VLPrecedence vlGetPrecedence(VLOperation operation);
 bool vlIsLeftToRightAssociative(VLPrecedence precedence);
 
