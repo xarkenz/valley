@@ -20,6 +20,9 @@
 #define VL_ANSI_CYAN    "\x1b[36m"
 #define VL_ANSI_RESET   "\x1b[0m"
 
+#define VL_MAX_OPERATORS 20
+#define VL_MAX_OPERANDS 100
+
 // ---- TYPEDEFS ---- //
 
 typedef struct {
@@ -254,6 +257,7 @@ typedef enum VLStatus {
     VL_STATUS_UNEXPECTED,
     VL_STATUS_EXPECTED,
     VL_STATUS_UNCLOSED,
+    VL_STATUS_NOT_ENOUGH_OPERANDS,
 } VLStatus;
 
 typedef struct VLToken {
@@ -302,7 +306,7 @@ typedef struct VLExpression {
         } ternaryOp;
         struct {
             VLOperation operation;
-            struct VLExpression* children;
+            struct VLExpression** children;
             size_t count;
         } multiOp;
     };
@@ -312,6 +316,10 @@ typedef struct VLParser {
     FILE* stream;
     size_t pos;
     VLToken token;
+    VLOperation operators[VL_MAX_OPERATORS];
+    size_t operatorCount;
+    VLExpression* operands[VL_MAX_OPERANDS];
+    size_t operandCount;
     VLStatus status;
     const char* what;
 } VLParser;
@@ -331,9 +339,14 @@ void vlSkipBlockComment(VLParser* parser);
 void vlGrabToken(VLParser* parser);
 bool vlNextToken(VLParser* parser);
 
-VLOperation vlGetOperation(VLTokenKind kind, bool prefix);
-VLPrecedence vlGetPrecedence(VLOperation operation);
-bool vlIsLeftToRightAssociative(VLPrecedence precedence);
+VLOperation vlGetOp(VLTokenKind kind, bool prefix);
+VLPrecedence vlGetPrec(VLOperation op);
+bool vlLToRAssoc(VLPrecedence prec);
+size_t vlNumOperands(VLOperation op);
+bool vlEvalsBefore(VLOperation left, VLOperation right);
+bool vlEndsExpr(VLTokenKind kind, bool allowComma);
+
+void vlMakeOperand(VLParser* parser);
 
 VLExpression* vlParseExpr(VLParser* parser, VLDataType type, bool lvalue, bool allowComma, bool allowEmpty);
 

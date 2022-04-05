@@ -538,7 +538,7 @@ bool vlNextToken(VLParser* parser) {
 }
 
 
-VLOperation vlGetOperation(VLTokenKind kind, bool prefix) {
+VLOperation vlGetOp(VLTokenKind kind, bool prefix) {
     switch (kind) {
         case VL_SYM_ADD: return prefix ? VL_OP_POS : VL_OP_ADD;
         case VL_SYM_SUB: return prefix ? VL_OP_NEG : VL_OP_SUB;
@@ -591,8 +591,8 @@ VLOperation vlGetOperation(VLTokenKind kind, bool prefix) {
 }
 
 
-VLPrecedence vlGetPrecedence(VLOperation operation) {
-    switch (operation) {
+VLPrecedence vlGetPrec(VLOperation op) {
+    switch (op) {
         case VL_OP_CALL:
         case VL_OP_INDEX:
         case VL_OP_MEMBER:
@@ -672,13 +672,105 @@ VLPrecedence vlGetPrecedence(VLOperation operation) {
 }
 
 
-bool vlIsLeftToRightAssociative(VLPrecedence precedence) {
-    switch (precedence) {
+size_t vlNumOperands(VLOperation op) {
+    switch (op) {
+        case VL_OP_POS:
+        case VL_OP_NEG:
+        case VL_OP_NOT:
+        case VL_OP_LNOT:
+        case VL_OP_INC_BEF:
+        case VL_OP_INC_AFT:
+        case VL_OP_DEC_BEF:
+        case VL_OP_DEC_AFT:
+        case VL_OP_EXTEND:
+            return 1;
+        case VL_OP_ADD:
+        case VL_OP_SUB:
+        case VL_OP_MUL:
+        case VL_OP_DIV:
+        case VL_OP_MOD:
+        case VL_OP_EXP:
+        case VL_OP_AND:
+        case VL_OP_XOR:
+        case VL_OP_OR:
+        case VL_OP_LSHIFT:
+        case VL_OP_RSHIFT:
+        case VL_OP_LAND:
+        case VL_OP_LXOR:
+        case VL_OP_LOR:
+        case VL_OP_EQ:
+        case VL_OP_NEQ:
+        case VL_OP_LT:
+        case VL_OP_GT:
+        case VL_OP_LTEQ:
+        case VL_OP_GTEQ:
+        case VL_OP_SAME:
+        case VL_OP_NSAME:
+        case VL_OP_IS:
+        case VL_OP_PUT:
+        case VL_OP_ADD_PUT:
+        case VL_OP_SUB_PUT:
+        case VL_OP_MUL_PUT:
+        case VL_OP_DIV_PUT:
+        case VL_OP_MOD_PUT:
+        case VL_OP_EXP_PUT:
+        case VL_OP_AND_PUT:
+        case VL_OP_XOR_PUT:
+        case VL_OP_OR_PUT:
+        case VL_OP_LSHIFT_PUT:
+        case VL_OP_RSHIFT_PUT:
+        case VL_OP_CAST:
+        case VL_OP_MEMBER:
+        case VL_OP_DECLARE:
+        case VL_OP_DECLARE_FINAL:
+            return 2;
+        case VL_OP_COND:
+            return 3;
+        default:
+            return 0;
+    }
+}
+
+
+bool vlLToRAssoc(VLPrecedence prec) {
+    switch (prec) {
         case VL_PREC_PREFIX:
         case VL_PREC_ASSIGNMENT:
             return false;
         default:
             return true;
+    }
+}
+
+
+bool vlEvalsBefore(VLOperation left, VLOperation right) {
+    VLPrecedence lPrec = vlGetPrec(left);
+    VLPrecedence rPrec = vlGetPrec(right);
+    return vlLToRAssoc(lPrec) ? lPrec <= rPrec : lPrec < rPrec;
+}
+
+
+bool vlEndsExpr(VLTokenKind kind, bool allowComma) {
+    switch (kind) {
+        case VL_TOKEN_EOF:
+        case VL_SYM_SEMICOLON:
+        case VL_SYM_COLON:
+        case VL_SYM_R_PAREN:
+        case VL_SYM_R_SQUARE:
+        case VL_SYM_R_CURLY:
+            return true;
+        case VL_SYM_COMMA:
+            return !allowComma;
+        default:
+            return false;
+    }
+}
+
+
+void vlMakeOperand(VLParser* parser) {
+    if (parser->operandCount < vlNumOperands(parser->operators[parser->operatorCount - 1])) {
+        parser->status = VL_STATUS_NOT_ENOUGH_OPERANDS;
+        // TODO: set parser->what to something meaningful
     }
 }
 

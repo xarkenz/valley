@@ -12,7 +12,7 @@ int main() {
         return 0;
     }
 
-    VLParser parser = {stream, -1, {.kind = VL_TOKEN_EOF, -1}, VL_STATUS_OK, NULL};
+    VLParser parser = {stream, -1, {.kind = VL_TOKEN_EOF, -1}, .status = VL_STATUS_OK};
 
     if (!vlNextToken(&parser)) {
         fclose(stream);
